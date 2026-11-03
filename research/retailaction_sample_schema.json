@@ -1,0 +1,87 @@
+{
+  "source": "https://huggingface.co/datasets/standard-cognition/RetailAction/resolve/49cb590723db921a4bd5a38adea92f6abd3f7a00/data/validation.tar",
+  "max_bytes_read": 5242880,
+  "metadata_found": true,
+  "bytes_read": 5242880,
+  "archive_member": "validation/001078/metadata.json",
+  "members_before_metadata": 1280,
+  "schema": {
+    "content": {
+      "action_cam": {
+        "rank0": {
+          "face_positions": {
+            "length": 32,
+            "first": {
+              "col": "float",
+              "row": "float",
+              "sampled_at": "str"
+            }
+          },
+          "frame_timestamps": {
+            "length": 32,
+            "first": "str"
+          },
+          "sampling_scores": {
+            "length": 46,
+            "first": {
+              "length": 2,
+              "first": "str"
+            }
+          },
+          "poses": {
+            "length": 32,
+            "first": {
+              "joint_scores": "dict",
+              "pose": "dict"
+            }
+          }
+        },
+        "rank1": {
+          "face_positions": {
+            "length": 32,
+            "first": {
+              "col": "float",
+              "row": "float",
+              "sampled_at": "str"
+            }
+          },
+          "frame_timestamps": {
+            "length": 32,
+            "first": "str"
+          },
+          "sampling_scores": {
+            "length": 46,
+            "first": {
+              "length": 2,
+              "first": "str"
+            }
+          },
+          "poses": {
+            "length": 32,
+            "first": {
+              "joint_scores": "dict",
+              "pose": "dict"
+            }
+          }
+        }
+      },
+      "labels": {
+        "action": {
+          "length": 1,
+          "first": {
+            "start": "float",
+            "end": "float",
+            "label": "str",
+            "spatial": {
+              "action_cam": "dict"
+            }
+          }
+        }
+      },
+      "segment_info": {
+        "sampled_at_start": "str",
+        "sampled_at_end": "str"
+      }
+    }
+  }
+}

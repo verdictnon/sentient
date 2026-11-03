@@ -1,0 +1,194 @@
+{
+  "scope": "V3 training-role geometry only; original training pilot timing only. Ground-truth contact points used for diagnosis, never as model crop inputs.",
+  "source_positive_clip_groups": {
+    "train": {
+      "take": 15248,
+      "put": 349,
+      "touch": 64
+    },
+    "validation": {
+      "take": 1139,
+      "put": 23,
+      "touch": 3
+    },
+    "test": {
+      "take": 2247,
+      "put": 45,
+      "touch": 7
+    }
+  },
+  "crop_diagnostics": {
+    "take": {
+      "annotated_view_events_checked": 3733,
+      "support_frames": {
+        "5": 2.0,
+        "25": 5.0,
+        "50": 7.0,
+        "75": 11.0,
+        "95": 17.0
+      },
+      "body_contains_contact_any_frame": 0.9512456469327618,
+      "hand_region_contains_contact_any_frame": 0.9421376908652558,
+      "body_contains_contact_fraction_frames": 0.8307428200313782,
+      "hand_contains_contact_fraction_frames": 0.8032402525563084,
+      "hand_to_body_side_ratio": {
+        "5": 0.635593220338983,
+        "25": 0.782608695652174,
+        "50": 0.9142857142857143,
+        "75": 1.062539447959482,
+        "95": 1.2914798206278026
+      },
+      "hypothetical_20px_detail_after_body_resize": {
+        "5": 6.779661016949152,
+        "25": 8.121827411167512,
+        "50": 9.3841642228739,
+        "75": 11.07266435986159,
+        "95": 14.349775784753364
+      },
+      "hypothetical_20px_detail_after_hand_resize": {
+        "5": 8.205128205128204,
+        "25": 10.666666666666666,
+        "50": 11.11111111111111,
+        "75": 11.11111111111111,
+        "95": 11.11111111111111
+      }
+    },
+    "put": {
+      "annotated_view_events_checked": 611,
+      "support_frames": {
+        "5": 2.0,
+        "25": 4.0,
+        "50": 6.0,
+        "75": 10.0,
+        "95": 15.5
+      },
+      "body_contains_contact_any_frame": 0.9541734860883797,
+      "hand_region_contains_contact_any_frame": 0.9607201309328969,
+      "body_contains_contact_fraction_frames": 0.870298090947701,
+      "hand_contains_contact_fraction_frames": 0.8929095184630952,
+      "hand_to_body_side_ratio": {
+        "5": 0.6101694915254238,
+        "25": 0.761179854262135,
+        "50": 0.9375721709006928,
+        "75": 1.0950570342205324,
+        "95": 1.3714285714285714
+      },
+      "hypothetical_20px_detail_after_body_resize": {
+        "5": 6.597938144329897,
+        "25": 8.142493638676845,
+        "50": 9.75609756097561,
+        "75": 11.594202898550725,
+        "95": 15.238095238095237
+      },
+      "hypothetical_20px_detail_after_hand_resize": {
+        "5": 8.533333333333333,
+        "25": 11.11111111111111,
+        "50": 11.11111111111111,
+        "75": 11.11111111111111,
+        "95": 11.11111111111111
+      }
+    },
+    "touch": {
+      "annotated_view_events_checked": 91,
+      "support_frames": {
+        "5": 3.0,
+        "25": 4.0,
+        "50": 7.0,
+        "75": 10.0,
+        "95": 17.0
+      },
+      "body_contains_contact_any_frame": 0.989010989010989,
+      "hand_region_contains_contact_any_frame": 1.0,
+      "body_contains_contact_fraction_frames": 0.8871135556009505,
+      "hand_contains_contact_fraction_frames": 0.9079096129516296,
+      "hand_to_body_side_ratio": {
+        "5": 0.6269053708439898,
+        "25": 0.782608695652174,
+        "50": 0.9536423841059603,
+        "75": 1.094224924012158,
+        "95": 1.3714285714285714
+      },
+      "hypothetical_20px_detail_after_body_resize": {
+        "5": 6.885777450257922,
+        "25": 8.398950131233596,
+        "50": 9.75609756097561,
+        "75": 11.11111111111111,
+        "95": 15.238095238095237
+      },
+      "hypothetical_20px_detail_after_hand_resize": {
+        "5": 8.033590273861002,
+        "25": 11.11111111111111,
+        "50": 11.11111111111111,
+        "75": 11.11111111111111,
+        "95": 11.11111111111111
+      }
+    }
+  },
+  "all_training_hand_to_body_side_ratio": {
+    "5": 0.6260869565217392,
+    "25": 0.782608695652174,
+    "50": 0.9142857142857143,
+    "75": 1.099236641221374,
+    "95": 1.3714285714285714
+  },
+  "fraction_hand_crop_not_tighter_than_body": 0.39068745915218944,
+  "original_segment_duration_s": {
+    "5": 1.9700000000000017,
+    "25": 4.0,
+    "50": 5.8,
+    "75": 8.700941,
+    "95": 16.4
+  },
+  "original_timestamp_views_checked": 888,
+  "original_timestamp_views_missing": 136,
+  "original_interframe_gap_s": {
+    "5": 0.1,
+    "25": 0.1,
+    "50": 0.2,
+    "75": 0.3,
+    "95": 0.6
+  },
+  "original_13_frame_span_s": {
+    "5": 1.2,
+    "25": 1.5,
+    "50": 2.2,
+    "75": 3.3,
+    "95": 6.8
+  },
+  "temporal_convolution_kernel_sizes": [
+    5,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+  ],
+  "cautions": [
+    "Contact-point inclusion is only a crop-coverage proxy, not measured item visibility or bounding-box recall.",
+    "20px projected detail is an illustration, not measured item size.",
+    "Convolution-only receptive field; squeeze-excitation additionally pools across the whole clip. Neither measures the learned effective receptive field or proves a cause of error.",
+    "Paired camera view events are correlated; counts are not unique independent shoppers."
+  ],
+  "v3_frozen_prefix_convolution_only_receptive_field_frames": 57
+}

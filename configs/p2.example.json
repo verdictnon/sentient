@@ -1,0 +1,14 @@
+{
+  "config_version": 1,
+  "detector": "rtdetrv2",
+  "device": "auto",
+  "sample_period_ms": 200,
+  "high_threshold": 0.5,
+  "low_threshold": 0.1,
+  "match_iou": 0.2,
+  "second_match_iou": 0.1,
+  "max_lost_ms": 1000,
+  "max_tracks": 256,
+  "seed": 0,
+  "run_revision": 1
+}

@@ -1,0 +1,143 @@
+"""The simplified UI must actually import, persist editable geometry and play media."""
+from contextlib import contextmanager
+import json
+from pathlib import Path
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+import urllib.request
+from playwright.sync_api import sync_playwright,expect
+from app.p1.demo import make_video
+ROOT=Path(__file__).resolve().parents[2]
+
+@contextmanager
+def server(folder):
+    with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+    url=f'http://127.0.0.1:{port}'
+    with (folder/'server.log').open('w') as log:
+        p=subprocess.Popen([sys.executable,'-m','app.p1.server','--port',str(port),'--data-dir',str(folder/'workspace')],cwd=ROOT,stdout=log,stderr=log)
+        try:
+            deadline=time.monotonic()+20
+            while True:
+                try:urllib.request.urlopen(url+'/api/status',timeout=1).close();break
+                except OSError:
+                    if p.poll() is not None or time.monotonic()>deadline:raise RuntimeError((folder/'server.log').read_text())
+                    time.sleep(.1)
+            yield url
+        finally:p.terminate();p.wait(timeout=15)
+
+class WorkspaceBrowserTests(unittest.TestCase):
+    def test_operations_track_reviews_reports_and_schedules(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder=Path(directory);path=make_video(folder/'aisle.mp4',times=list(range(0,4200,100)),width=640,height=360)
+            with server(folder) as url,sync_playwright() as pw:
+                browser=pw.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1440,'height':1000});page.set_default_timeout(10000)
+                errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+                video=page.request.post(url+'/api/videos/import',data={'path':str(path)}).json()
+                g=page.request.get(url+f'/api/videos/{video["id"]}/geometry').json()['geometry']
+                g['shapes']=[{'id':'shelf','kind':'shelf','name':'Drinks','points':[[100,100],[400,100],[400,300],[100,300]]}]
+                saved=page.request.put(url+f'/api/videos/{video["id"]}/geometry',data=g).json()
+                key='e'*32;folder_live=folder/'workspace/live'/key;folder_live.mkdir(parents=True)
+                event={'id':'pickup:demo','local_track_id':'local:1','start_media_ms':600,'end_media_ms':3000,'detected_media_ms':3000,'score':.99}
+                summary={'id':key,'video_id':video['id'],'geometry_id':saved['id'],'status':'completed','processed_frames':20,'scored_windows':1,'pickups':[event]}
+                (folder_live/'summary.json').write_text(json.dumps(summary))
+                rows=[{'frame_index':ms//100,'media_ms':ms,'tracks':[{'local_track_id':'local:1','box':[200,80,300,240],'position_status':'observed'}]} for ms in range(0,4000,200)]
+                (folder_live/'observations.jsonl').write_text('\n'.join(map(json.dumps,rows)))
+                page.goto(url+'/?video='+video['id']);page.wait_for_function('ops.data?.tracks.length===1')
+                page.locator('[data-nav="tracking"]').click();page.locator('[data-focus-track]').click()
+                expect(page.locator('#track-detail')).to_contain_text('Area visit ledger')
+                page.wait_for_function("document.querySelector('#track-detail img').naturalWidth>0")
+                with page.expect_download() as download:page.locator('#trajectory-export').click()
+                self.assertIn('media_ms',Path(download.value.path()).read_text())
+                page.locator('[data-nav="incidents"]').click();page.locator('[data-signal]').click()
+                page.locator('#incident-decision').select_option('rejected');page.locator('#incident-notes').fill('No visible item interaction in this fixture.')
+                page.locator('#incident-form button[type=submit]').click();expect(page.locator('#incident-dialog')).not_to_be_visible()
+                expect(page.locator('.review-badge')).to_have_text('Dismissed')
+                page.reload();page.wait_for_function('ops.data?.summary.rejected===1');expect(page.locator('#page-label')).to_have_text('Investigations')
+                page.locator('[data-nav="reports"]').click();page.locator('#report-select-all').click();page.locator('#report-preview').click()
+                expect(page.locator('#report-message')).to_contain_text('Preview ready')
+                page.locator('#report-generate').click();expect(page.locator('#report-message')).to_contain_text('Report saved')
+                with page.expect_download() as download:page.locator('#report-library a').filter(has_text='PDF').first.click()
+                self.assertTrue(Path(download.value.path()).read_bytes().startswith(b'%PDF'))
+                with page.expect_download() as download:page.locator('#report-library a').filter(has_text='DOCX').first.click()
+                self.assertTrue(Path(download.value.path()).read_bytes().startswith(b'PK'))
+                page.locator('#schedule-name').fill('Monthly briefing');page.locator('#schedule-cadence').select_option('monthly');page.locator('#schedule-form button').click()
+                expect(page.locator('#schedule-list')).to_contain_text('Monthly briefing');page.locator('[data-delete-schedule]').click();expect(page.locator('#schedule-list')).to_contain_text('No schedules yet')
+                # Undated recordings cannot masquerade as a calendar month's activity.
+                page.locator('#report-scope').select_option('month');page.locator('#report-preview').click()
+                expect(page.locator('#report-preview-content')).to_contain_text('No analysed recordings match')
+                page.set_viewport_size({'width':390,'height':844})
+                self.assertFalse(page.evaluate('document.documentElement.scrollWidth>innerWidth'))
+                page.locator('#menu-toggle').click();page.locator('[data-nav="system"]').click();page.wait_for_function('ops.health!==null')
+                expect(page.locator('#model-readiness')).to_contain_text('Continuous store-footage precision is unmeasured')
+                self.assertFalse(page.evaluate('document.documentElement.scrollWidth>innerWidth'))
+                self.assertEqual(errors,[]);browser.close()
+
+
+    def test_saved_live_dashboard_heatmap_exports_and_mobile_navigation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder=Path(directory)
+            path=make_video(folder/'camera.mp4',times=list(range(0,1200,100)),width=640,height=360)
+            with server(folder) as url,sync_playwright() as pw:
+                browser=pw.chromium.launch(headless=True)
+                page=browser.new_page(viewport={'width':1440,'height':1000})
+                errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+                page.goto(url);page.locator('#import-open').click()
+                page.locator('#import-form button[type=submit]').click()
+                expect(page.locator('#import-error')).to_contain_text('Choose an MP4')
+                page.locator('#import-close').click()
+                video=page.request.post(url+'/api/videos/import',data={'path':str(path)}).json()
+                geometry=page.request.get(url+f'/api/videos/{video["id"]}/geometry').json()['geometry']
+                geometry['shapes']=[{'id':'shelf','kind':'shelf','name':'Drinks','points':[[100,100],[400,100],[400,300],[100,300]]}]
+                saved=page.request.put(url+f'/api/videos/{video["id"]}/geometry',data=geometry).json()
+                key='b'*32;live=folder/'workspace/live'/key;live.mkdir(parents=True)
+                event={'id':'candidate','local_track_id':'local:1','start_media_ms':0,'end_media_ms':800,'detected_media_ms':200,'score':.99}
+                summary={'id':key,'video_id':video['id'],'geometry_id':saved['id'],'status':'completed','processed_frames':6,'scored_windows':1,'pickups':[event],'threshold':.97,'unique_tracks':1}
+                (live/'summary.json').write_text(json.dumps(summary))
+                rows=[{'frame_index':ms//100,'media_ms':ms,'tracks':[{'local_track_id':'local:1','position_status':'observed','box':[200,80,300,240]}]} for ms in range(0,1200,200)]
+                (live/'observations.jsonl').write_text('\n'.join(map(json.dumps,rows)))
+                page.goto(url+'/?video='+video['id'])
+                expect(page.locator('#run-status')).to_have_text('Saved live results')
+                expect(page.locator('#metric-tracks')).to_have_text('1')
+                expect(page.locator('#metric-pickups')).to_have_text('1')
+                expect(page.locator('#metric-dwell')).to_have_text('1.0s')
+                expect(page.locator('#shelves')).to_contain_text('Drinks')
+                self.assertEqual(page.locator('#traffic-chart rect').count(),12)
+                page.locator('#show-heatmap').check()
+                page.locator('#player').evaluate('e=>{e.currentTime=.8}')
+                expect(page.locator('#heatmap')).to_be_visible()
+                page.wait_for_function("document.getElementById('heatmap').getContext('2d').getImageData(250,240,1,1).data[3]>0")
+                with page.expect_download() as download:page.locator('#shelf-csv').click()
+                self.assertEqual(download.value.suggested_filename,'sentient-area-activity.csv')
+                with page.expect_download() as download:page.locator('#export').click()
+                self.assertEqual(json.loads(Path(download.value.path()).read_text())['id'],key)
+                page.locator('[data-pickup]').click()
+                page.wait_for_function('document.getElementById("player").currentTime<.1')
+                # Recalculate saved observations against a changed area, without inference.
+                geometry['shapes'][0]['points']=[[10,10],[60,10],[60,60],[10,60]]
+                page.request.put(url+f'/api/videos/{video["id"]}/geometry',data=geometry)
+                report=page.request.get(url+f'/api/live/sessions/{key}/shelves').json()
+                self.assertEqual(report['areas'][0]['unique_tracks'],0)
+                self.assertEqual(report['areas'][0]['pickup_alerts'],0)
+                self.assertEqual(page.request.get(url+'/api/live/videos/missing').status,404)
+                page.set_viewport_size({'width':390,'height':844})
+                self.assertFalse(page.evaluate('document.documentElement.scrollWidth>innerWidth'))
+                page.locator('#menu-toggle').click();page.locator('[data-nav="analytics"]').click()
+                expect(page.locator('#page-label')).to_have_text('Analytics')
+                self.assertEqual(errors,[]);browser.close()
+
+    def test_import_geometry_vertex_drag_reload_help_and_playback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder=Path(directory);path=make_video(folder/'recording.mp4',times=list(range(0,4100,100)),width=640,height=360)
+            with server(folder) as url,sync_playwright() as pw:
+                browser=pw.chromium.launch(headless=True)
+                page=browser.new_page(viewport={'width':1280,'height':960});page.set_default_timeout(7000);errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+                page.goto(url);page.locator('#import-open').click();page.locator('#video-path').fill(str(path));page.locator('#import-form button[type=submit]').click();expect(page.locator('#video-name')).to_contain_text('recording.mp4')
+                page.locator('#geometry-tab').click();expect(page.locator('#shape-list')).to_contain_text('No areas labelled');page.locator('#draw').click();box=page.locator('#overlay').bounding_box()
+                for x,y in [(0.2,.2),(.8,.2),(.8,.8),(.2,.8)]:page.mouse.click(box['x']+box['width']*x,box['y']+box['height']*y)
+                page.locator('#finish').click();page.locator('#shape-name').fill('Drinks');vertex=page.locator('[data-vertex="0"]').bounding_box();page.mouse.move(vertex['x']+vertex['width']/2,vertex['y']+vertex['height']/2);page.mouse.down();page.mouse.move(box['x']+box['width']*.25,box['y']+box['height']*.25);page.mouse.up()
+                page.locator('#save-geometry').click();expect(page.locator('#notice')).to_contain_text('Geometry saved');page.reload();page.locator('#geometry-tab').click();expect(page.locator('#shape-list')).to_contain_text('Drinks')
+                page.locator('#help-tab').click();expect(page.locator('#help-panel')).to_contain_text('feet must enter');page.locator('#results-tab').click();page.locator('#player').evaluate('e=>e.play()');page.wait_for_function("document.getElementById('player').currentTime>.2");self.assertFalse(errors,errors);browser.close()

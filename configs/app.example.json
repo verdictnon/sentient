@@ -1,0 +1,6 @@
+{
+  "application_config_version": 1,
+  "line": {"start": [50, 100], "end": [50, 0], "hysteresis_px": 5},
+  "zone": [[55, 0], [85, 0], [85, 100], [55, 100]],
+  "max_gap_ms": 1500
+}

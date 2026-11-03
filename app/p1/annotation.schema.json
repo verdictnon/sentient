@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sentient application-owned human review envelope v1",
+  "type": "object",
+  "required": [
+    "annotation_schema_version",
+    "annotation_id",
+    "created_at_utc",
+    "video_id",
+    "media_sha256",
+    "store_id",
+    "camera_id",
+    "stream_session_id",
+    "local_track_id",
+    "collection_session",
+    "clock_status",
+    "source_contract_version",
+    "global_visit_id",
+    "collection_day",
+    "capture_time_utc",
+    "revision",
+    "start_media_ms",
+    "end_media_ms",
+    "frame_indices",
+    "original_media_times_ms",
+    "source_frame_pts",
+    "human",
+    "source_records",
+    "model_outputs",
+    "provenance",
+    "subject_track_key"
+  ],
+  "properties": {
+    "annotation_schema_version": {
+      "const": "sentient.review/1"
+    },
+    "annotation_id": {
+      "type": "string"
+    },
+    "created_at_utc": {
+      "type": "string"
+    },
+    "video_id": {
+      "type": "string"
+    },
+    "media_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "store_id": {
+      "type": "string"
+    },
+    "camera_id": {
+      "type": "string"
+    },
+    "stream_session_id": {
+      "type": "string"
+    },
+    "local_track_id": {
+      "type": "string"
+    },
+    "collection_session": {
+      "type": "string"
+    },
+    "clock_status": {
+      "type": "string"
+    },
+    "source_contract_version": {
+      "const": "1.0"
+    },
+    "global_visit_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "collection_day": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "capture_time_utc": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "start_media_ms": {
+      "type": "number"
+    },
+    "end_media_ms": {
+      "type": "number"
+    },
+    "frame_indices": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "minItems": 1
+    },
+    "original_media_times_ms": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 1
+    },
+    "source_frame_pts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "frame_index",
+          "pts",
+          "time_base"
+        ],
+        "properties": {
+          "frame_index": {
+            "type": "integer"
+          },
+          "pts": {
+            "type": "integer"
+          },
+          "time_base": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "human": {
+      "type": "object",
+      "required": [
+        "reviewer",
+        "decision",
+        "label",
+        "visibility",
+        "uncertainty",
+        "notes"
+      ],
+      "properties": {
+        "reviewer": {
+          "type": "string"
+        },
+        "decision": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "visibility": {
+          "type": "string"
+        },
+        "uncertainty": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_records": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "model_outputs": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "analysis_id",
+        "geometry_id",
+        "target_id",
+        "source_kind",
+        "media_manifest"
+      ],
+      "properties": {
+        "analysis_id": {
+          "type": "string"
+        },
+        "geometry_id": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "source_kind": {
+          "const": "human_review"
+        },
+        "media_manifest": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "subject_track_key": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 4,
+      "maxItems": 4
+    }
+  },
+  "additionalProperties": false
+}

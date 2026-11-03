@@ -1,0 +1,144 @@
+{
+  "date": "2026-11-02",
+  "python": "3.11.18",
+  "torch": "2.7.1+cu126",
+  "gpu": "NVIDIA GeForce RTX 4050 Laptop GPU",
+  "gpu_total_mib": 5764.8125,
+  "allocator_cap_fraction": 0.7,
+  "scope": "Synthetic AMP forward/backward/AdamW on pretrained X3D blocks 0-4 plus adaptive pooling and a new 3-output head; all non-BN backbone parameters trainable. Seven steps per case, first two excluded from median. Capacity probe only, no accuracy inference, input/decode excluded. Peak allocator memory excludes other processes and CUDA context.",
+  "training_probes": [
+    {
+      "frames": 13,
+      "size": 160,
+      "batch": 1,
+      "fits": true,
+      "median_step_ms": 37.09827700004098,
+      "peak_allocated_mib": 218.3076171875,
+      "peak_reserved_mib": 232.0,
+      "trainable_parameters": 1976157
+    },
+    {
+      "frames": 13,
+      "size": 160,
+      "batch": 2,
+      "fits": true,
+      "median_step_ms": 46.6629059992556,
+      "peak_allocated_mib": 395.1259765625,
+      "peak_reserved_mib": 452.0,
+      "trainable_parameters": 1976157
+    },
+    {
+      "frames": 16,
+      "size": 224,
+      "batch": 1,
+      "fits": true,
+      "median_step_ms": 48.7309969994385,
+      "peak_allocated_mib": 464.30615234375,
+      "peak_reserved_mib": 544.0,
+      "trainable_parameters": 1976157
+    },
+    {
+      "frames": 32,
+      "size": 224,
+      "batch": 1,
+      "fits": true,
+      "median_step_ms": 78.60117299969716,
+      "peak_allocated_mib": 888.29345703125,
+      "peak_reserved_mib": 1072.0,
+      "trainable_parameters": 1976157
+    }
+  ],
+  "mvit_capacity_probes": [
+    {
+      "model": "mvit_v2_s",
+      "mode": "frozen_forward",
+      "weights": "random; capacity only",
+      "frames": 16,
+      "size": 224,
+      "batch": 1,
+      "fits": true,
+      "median_step_ms": 42.0446650005033,
+      "peak_allocated_mib": 302.0634765625,
+      "peak_reserved_mib": 538.0
+    },
+    {
+      "model": "mvit_v2_s",
+      "mode": "full_gradient_step",
+      "weights": "random; capacity only",
+      "frames": 16,
+      "size": 224,
+      "batch": 1,
+      "fits": true,
+      "median_step_ms": 155.39745899968693,
+      "peak_allocated_mib": 1400.2197265625,
+      "peak_reserved_mib": 1696.0
+    }
+  ],
+  "real_input_probe": {
+    "scope": "Eight deterministic training groups, warm local files. Sequential timings, no worker overlap; excludes pose estimation, tracking and X3D/head forwards.",
+    "views": [
+      {
+        "group": "train/000028",
+        "frames": 32,
+        "context_prepare_ms": 149.99656599957234,
+        "detail_prepare_ms": 228.11848700075643,
+        "detail_transfer_encode_copy_ms": 103.62112199982221
+      },
+      {
+        "group": "train/000031",
+        "frames": 32,
+        "context_prepare_ms": 163.2419010002195,
+        "detail_prepare_ms": 216.57365299961384,
+        "detail_transfer_encode_copy_ms": 110.33587699967029
+      },
+      {
+        "group": "train/000049",
+        "frames": 32,
+        "context_prepare_ms": 110.95917000056943,
+        "detail_prepare_ms": 193.12061199980235,
+        "detail_transfer_encode_copy_ms": 104.92776099999901
+      },
+      {
+        "group": "train/000067",
+        "frames": 9,
+        "context_prepare_ms": 47.65898899950116,
+        "detail_prepare_ms": 71.49683500028914,
+        "detail_transfer_encode_copy_ms": 28.787629999897035
+      },
+      {
+        "group": "train/000193",
+        "frames": 32,
+        "context_prepare_ms": 111.97542300033092,
+        "detail_prepare_ms": 151.16565700009232,
+        "detail_transfer_encode_copy_ms": 103.22563799945783
+      },
+      {
+        "group": "train/000216",
+        "frames": 32,
+        "context_prepare_ms": 109.39926599985483,
+        "detail_prepare_ms": 145.50867100024334,
+        "detail_transfer_encode_copy_ms": 109.90952599968296
+      },
+      {
+        "group": "train/000236",
+        "frames": 32,
+        "context_prepare_ms": 160.62035699997068,
+        "detail_prepare_ms": 190.53166100002272,
+        "detail_transfer_encode_copy_ms": 102.89625899986277
+      },
+      {
+        "group": "train/000278",
+        "frames": 32,
+        "context_prepare_ms": 171.6129810001803,
+        "detail_prepare_ms": 217.70703499987576,
+        "detail_transfer_encode_copy_ms": 111.62421199969685
+      }
+    ],
+    "median_ms": {
+      "context_prepare_ms": 130.98599449995163,
+      "detail_prepare_ms": 191.82613649991254,
+      "detail_transfer_encode_copy_ms": 104.27444149991061
+    }
+  },
+  "nvidia_smi_after": "60, 36.71 W, [N/A], 1158 MiB"
+}

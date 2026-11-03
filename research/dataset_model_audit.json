@@ -1,0 +1,147 @@
+{
+  "checked_on": "2026-10-29",
+  "scope": "Public metadata and a bounded 5 MiB validation TAR prefix inspected. No model weights or full dataset archives downloaded.",
+  "local_hardware": {
+    "gpu": "NVIDIA GeForce RTX 4050 Laptop GPU",
+    "vram_mib": 6141,
+    "ram_gib_approx": 15,
+    "python": "3.14.8",
+    "torch_installed": false
+  },
+  "sources": {
+    "retailaction": {
+      "source": "https://huggingface.co/api/datasets/standard-cognition/RetailAction",
+      "result": {
+        "id": "standard-cognition/RetailAction",
+        "sha": "49cb590723db921a4bd5a38adea92f6abd3f7a00",
+        "gated": false,
+        "disabled": false,
+        "lastModified": "2025-09-25T09:20:24.000Z",
+        "usedStorage": 31870380787
+      }
+    },
+    "retailaction_files": {
+      "source": "https://huggingface.co/api/datasets/standard-cognition/RetailAction/tree/main/data",
+      "result": [
+        {
+          "path": "data/test.tar",
+          "size_bytes": 3838385152,
+          "lfs": {
+            "oid": "26a376627f22df0702d1bb536dd073843d3720a6b4a1788d4d226513a3ac8a25",
+            "size": 3838385152,
+            "pointerSize": 135
+          }
+        },
+        {
+          "path": "data/train.tar",
+          "size_bytes": 26082080256,
+          "lfs": {
+            "oid": "272dcd90f2a12020dfe40542b54196dc36309a0e42298ff50f3c384956369ad0",
+            "size": 26082080256,
+            "pointerSize": 136
+          }
+        },
+        {
+          "path": "data/validation.tar",
+          "size_bytes": 1937612800,
+          "lfs": {
+            "oid": "1287dc0b491f3eab5807d216bb96db2436da845ed0ea6e4ec69daf6182873836",
+            "size": 1937612800,
+            "pointerSize": 135
+          }
+        }
+      ]
+    },
+    "videomae_v1": {
+      "source": "https://huggingface.co/api/models/MCG-NJU/videomae-base-finetuned-kinetics",
+      "result": {
+        "id": "MCG-NJU/videomae-base-finetuned-kinetics",
+        "sha": "488eb9a0565f257b32866000305c8178965eb9f6",
+        "gated": false,
+        "lastModified": "2024-03-29T08:01:51.000Z",
+        "safetensors": {
+          "parameters": {
+            "F32": 86534800
+          },
+          "total": 86534800
+        },
+        "declared_license": "cc-by-nc-4.0"
+      }
+    },
+    "videomae_v2": {
+      "source": "https://huggingface.co/api/models/OpenGVLab/VideoMAEv2-Base",
+      "result": {
+        "id": "OpenGVLab/VideoMAEv2-Base",
+        "sha": "78c337a418cc4adaf7f1ff6c7ba343418393966b",
+        "gated": false,
+        "lastModified": "2025-01-14T08:44:20.000Z",
+        "safetensors": {
+          "parameters": {
+            "F32": 86227200
+          },
+          "total": 86227200
+        },
+        "declared_license": "cc-by-nc-4.0"
+      }
+    },
+    "pytorchvideo_revision": {
+      "source": "https://api.github.com/repos/facebookresearch/pytorchvideo/commits/main",
+      "result": {
+        "sha": "2ac6ed361309cb25144636ad82dd8bd6a4970e0c",
+        "commit_date": "2026-10-16T17:07:35Z"
+      }
+    },
+    "pytorchvideo_x3d": {
+      "source": "https://raw.githubusercontent.com/facebookresearch/pytorchvideo/main/pytorchvideo/models/hub/x3d.py",
+      "result": {
+        "checkpoint_urls": [
+          "https://dl.fbaipublicfiles.com/pytorchvideo/model_zoo/kinetics/X3D_S.pyth"
+        ],
+        "selection": "x3d_s, Kinetics-400 pretrained; 13 frames, 160x160 spatial input in official builder; weights not downloaded"
+      }
+    },
+    "retailaction_readme": {
+      "source": "https://huggingface.co/datasets/standard-cognition/RetailAction/raw/main/README.md",
+      "result": {
+        "public_data_links": [
+          "https://huggingface.co/settings/tokens",
+          "https://huggingface.co/datasets/standard-cognition/RetailAction"
+        ],
+        "selected_notes": [
+          "license: other",
+          "- `Take`: 97.2%",
+          "- **Train**: 17,222 samples",
+          "## License",
+          "See the full license terms in the [LICENSE](./LICENSE) file."
+        ]
+      }
+    },
+    "poselift_readme": {
+      "source": "https://raw.githubusercontent.com/TeCSAR-UNCC/PoseLift/main/README.md",
+      "result": {
+        "public_data_links": [
+          "https://drive.google.com/drive/folders/1aEkENZlVE4ZvF_BZXV1VJOwuiXQq6trn?usp=drive_link"
+        ],
+        "selected_notes": [
+          "6- **Shoplifting and Shopping Instances**: The dataset consists of 153 instances, including 43 instances of shoplifting and 112 regular shopping files. These were captured from various angles and locations to ensure diverse scenarios.",
+          "To ensure privacy preservation, we provide a pickle file (in .pkl format) for each original video in our dataset and we realese the pickle files, resulting in a total of 153 annotation files corresponding to 153 original videos. The files are named according to the following pattern:"
+        ]
+      }
+    },
+    "retails_readme": {
+      "source": "https://raw.githubusercontent.com/TeCSAR-UNCC/RetailS/main/README.md",
+      "result": {
+        "public_data_links": [
+          "https://drive.google.com/file/d/1uBCvDm7QdYjxwS9HT63lYaucATrecNuH/view?usp=drive_link"
+        ],
+        "selected_notes": [
+          "- RetailS Dataset: A large-scale, multi-camera dataset featuring nearly 20M normal frames and both staged and authentic shoplifting incidents"
+        ]
+      }
+    },
+    "retailaction_schema_inspection": {
+      "local_evidence": "research/retailaction_sample_schema.json",
+      "metadata_found": true
+    }
+  }
+}

@@ -1,0 +1,4 @@
+1) How many customers enter , exit (peak hour, amounts weekly, all that information synthesised, most busy hours,heat map of "popular" zones -> where most people buy things , most "popular" routes at the end of the day,week,month, Queue detection(people count, time count, etc) , map of customers(how many customers in which area of the store)  )
+2) Identifying thieves( 1) we detect when customers PICK an item -> 2) We cross check that data with whether they got to the counter), pocket snatching, etc. 
+3) Identifying shelves (cross checking it with the 1) point) 
+

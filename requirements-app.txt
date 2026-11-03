@@ -1,0 +1,18 @@
+# Application environment only. SQLite and unittest are supplied by Python.
+# jsonschema version is specified in the original contract README.
+jsonschema==4.25.1
+# Enables the date-time FormatChecker used by the original schema/validator.
+rfc3339-validator==0.1.4
+# P1 local video workspace.
+fastapi==0.162.0
+uvicorn==0.54.0
+python-multipart==0.0.33
+av==19.0.2
+Pillow==13.0.0
+# P2 time-aware tracking and process memory reporting (no model download).
+numpy==2.5.4
+scipy==1.18.1
+psutil==7.2.2
+# Operations report exports.
+reportlab==4.4.9
+python-docx==1.2.0

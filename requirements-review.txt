@@ -1,0 +1,7 @@
+# CPU review bridge only; keep separate from the model environment.
+# Verified with Python 3.12, PyAV 19.0.2 and Pillow 13.0.0 in .venv-app.
+av>=16.0.1,<20
+Pillow>=11.2.1,<14
+jsonschema==4.25.1
+rfc3339-validator==0.1.4
+httpx==0.28.1

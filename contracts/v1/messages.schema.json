@@ -1,0 +1,584 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sentient integration records v1.0",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "type": {
+          "const": "track.observed"
+        },
+        "record_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "store_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "camera_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stream_session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "media_time_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "capture_time_utc": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            }
+          ]
+        },
+        "clock_status": {
+          "enum": [
+            "verified",
+            "unverified",
+            "playback_only"
+          ]
+        },
+        "local_track_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "global_visit_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "frame_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "association_status": {
+          "enum": [
+            "local_only",
+            "provisional",
+            "confirmed",
+            "unknown"
+          ]
+        },
+        "bbox_xyxy_px": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "frame_dims_px": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "position_status": {
+          "enum": [
+            "observed",
+            "predicted"
+          ]
+        },
+        "world_xy_m": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          ]
+        },
+        "calibration_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pose_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "schema_version",
+        "type",
+        "record_id",
+        "store_id",
+        "camera_id",
+        "stream_session_id",
+        "media_time_ms",
+        "capture_time_utc",
+        "clock_status",
+        "local_track_id",
+        "global_visit_id",
+        "frame_index",
+        "association_status",
+        "bbox_xyxy_px",
+        "frame_dims_px",
+        "score",
+        "position_status",
+        "world_xy_m",
+        "calibration_version",
+        "pose_ref",
+        "model_id"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "type": {
+          "const": "action.candidate"
+        },
+        "record_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "store_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "camera_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stream_session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "media_time_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "capture_time_utc": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            }
+          ]
+        },
+        "clock_status": {
+          "enum": [
+            "verified",
+            "unverified",
+            "playback_only"
+          ]
+        },
+        "local_track_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "global_visit_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "candidate_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start_media_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "end_media_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "frame_indices": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "frame_media_times_ms": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "capture_elapsed_ms": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          ]
+        },
+        "sampling_time_known": {
+          "type": "boolean"
+        },
+        "source_kind": {
+          "enum": [
+            "continuous",
+            "sparse_clip",
+            "mock"
+          ]
+        },
+        "video_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observations_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "schema_version",
+        "type",
+        "record_id",
+        "store_id",
+        "camera_id",
+        "stream_session_id",
+        "media_time_ms",
+        "capture_time_utc",
+        "clock_status",
+        "local_track_id",
+        "global_visit_id",
+        "candidate_id",
+        "start_media_ms",
+        "end_media_ms",
+        "frame_indices",
+        "frame_media_times_ms",
+        "capture_elapsed_ms",
+        "sampling_time_known",
+        "source_kind",
+        "video_ref",
+        "observations_ref"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "type": {
+          "const": "action.scored"
+        },
+        "record_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "store_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "camera_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stream_session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "media_time_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "capture_time_utc": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            }
+          ]
+        },
+        "clock_status": {
+          "enum": [
+            "verified",
+            "unverified",
+            "playback_only"
+          ]
+        },
+        "local_track_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "global_visit_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "candidate_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action": {
+          "enum": [
+            "take",
+            "put",
+            "touch",
+            "background",
+            "unknown"
+          ]
+        },
+        "scores": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "take",
+                "put",
+                "touch",
+                "background"
+              ],
+              "properties": {
+                "take": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "put": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "touch": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "background": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "abstained": {
+          "type": "boolean"
+        },
+        "quality": {
+          "enum": [
+            "valid",
+            "mock",
+            "missing_pose",
+            "insufficient_visibility",
+            "time_unknown",
+            "error"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "task": {
+          "enum": [
+            "window_classification",
+            "temporal_detection"
+          ]
+        },
+        "start_media_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "end_media_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "score_semantics": {
+          "enum": [
+            "softmax_single_label",
+            "sigmoid_multi_label",
+            "unavailable"
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "type",
+        "record_id",
+        "store_id",
+        "camera_id",
+        "stream_session_id",
+        "media_time_ms",
+        "capture_time_utc",
+        "clock_status",
+        "local_track_id",
+        "global_visit_id",
+        "candidate_id",
+        "model_id",
+        "action",
+        "scores",
+        "abstained",
+        "quality",
+        "reason",
+        "evidence_ref",
+        "task",
+        "start_media_ms",
+        "end_media_ms",
+        "score_semantics"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "type": {
+          "const": "stream.health"
+        },
+        "record_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "store_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "camera_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stream_session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "media_time_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "capture_time_utc": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            }
+          ]
+        },
+        "clock_status": {
+          "enum": [
+            "verified",
+            "unverified",
+            "playback_only"
+          ]
+        },
+        "state": {
+          "enum": [
+            "healthy",
+            "degraded",
+            "disconnected",
+            "ended"
+          ]
+        },
+        "dropped_frames": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "type",
+        "record_id",
+        "store_id",
+        "camera_id",
+        "stream_session_id",
+        "media_time_ms",
+        "capture_time_utc",
+        "clock_status",
+        "state",
+        "dropped_frames",
+        "reason"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+# Local environments, tools, and third-party checkouts.
+.venv/
+.venv-app/
+.tools/
+vendor/
+
+# Local footage, trained weights, catalogues, jobs, and generated reports.
+data/
+models/
+runs/
+**/.local/
+output/
+tmp/
+build/
+dist/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.log
+
+# Python and test caches.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Credentials and machine-specific files.
+.env
+.env.*
+!.env.example
+!.env.*.example
+.DS_Store
+Thumbs.db
+
+# Reproducible historical handoff bundles; source documents remain versioned.
+docs/archive/*.zip

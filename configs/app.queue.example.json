@@ -1,0 +1,10 @@
+{
+  "application_config_version": 1,
+  "line": {"start": [50, 100], "end": [50, 0], "hysteresis_px": 5},
+  "zone": [[55, 0], [85, 0], [85, 100], [55, 100]],
+  "max_gap_ms": 1500,
+  "queue": {
+    "waiting_zone": [[20, 0], [50, 0], [50, 100], [20, 100]],
+    "service_zone": [[50, 0], [80, 0], [80, 100], [50, 100]]
+  }
+}

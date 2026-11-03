@@ -1,0 +1,18 @@
+{
+  "model_dir": "runs/take_demo_v1/model",
+  "purpose": "Pickup demo with high-precision threshold and observed person paths",
+  "default_demo": {
+    "video_id": "bd9b84330afe4489acbfbf0ae03f3983f56b7dc9bc0bf46c9fe5ac142632711f",
+    "analysis_id": "95958eabcf369e15de0763872723062d730c3beb41db740d377a61797cb03c10",
+    "tracking_job_id": "f735aaccdf6762ce8b56fc8cd64c81d71f675eed2c17bfc89fd73b7aabb83272"
+  },
+  "demo_library": [
+    "7c593b1c126642a390041976d62c7d8e857c81bd6d2dde129c80e547b84c9203",
+    "bf7f035226428a39dfe9e293661294dc8298b6258fa95004acc8471cdf70995a",
+    "3a9fa6004385340941d968cb294c59ca052ebbcd352c41a193fbfe6bf8232a6e",
+    "ccde97b6efaa7bd520737ddae2c11380fd853ad6893c4aa4943103d9f634b1e9",
+    "18e4372b0027a8e55280c3678e961792874be8c48fe6289242ffe864d1881317",
+    "bd9b84330afe4489acbfbf0ae03f3983f56b7dc9bc0bf46c9fe5ac142632711f",
+    "6488f715741170a77a3f5ac57049ee1fb68308f385ddc975330aac9eab6cfbe6"
+  ]
+}

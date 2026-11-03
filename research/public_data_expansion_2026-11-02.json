@@ -1,0 +1,87 @@
+{
+  "checked_on": "2026-11-02",
+  "constraint": "Public datasets only; no authorized target-camera recordings yet.",
+  "leads": [
+    {
+      "name": "GroceryVision TAL/STAL",
+      "publisher_url": "https://grocery-vision.github.io/past_challenge/iccv2025.html",
+      "labels": {
+        "take": "putting product into cart basket",
+        "return": "removing product from basket",
+        "rummage": "moving products around basket"
+      },
+      "availability": "Publisher requires request with affiliation email; no data acquired",
+      "terms": "CC BY-NC 4.0 according to publisher",
+      "use": "Auxiliary cart-interaction localization; separate label namespace; not shelf-action replacement"
+    },
+    {
+      "name": "UR-PRD",
+      "publisher_url": "https://github.com/chelsea9067/UR-PRD",
+      "instances_claimed": 2103,
+      "modalities": [
+        "skeleton",
+        "hand images"
+      ],
+      "availability": "Baidu links; download not verified",
+      "terms": "No explicit dataset license found in repository",
+      "use": "Potential pickup/return auxiliary data; not ready for training"
+    },
+    {
+      "name": "MERL Shopping",
+      "publisher_url": "https://merl.com/research/highlights/merl-shopping-dataset",
+      "videos_claimed": 106,
+      "availability": "Publisher research-download link; no new download attempted",
+      "use": "Continuous overhead reach/retract/inspect timing; separate labels"
+    },
+    {
+      "name": "Development of Dataset for Detection of Various Events",
+      "publisher_url": "https://zenodo.org/records/10149996",
+      "metadata_url": "https://zenodo.org/api/records/10149996",
+      "license": {
+        "id": "cc-by-4.0"
+      },
+      "access_right": "open",
+      "files": [
+        {
+          "key": "shoplifting.rar",
+          "size": 519596512,
+          "checksum": "md5:7e31072c26e021551557dd20cc84b517"
+        },
+        {
+          "key": "normal.rar",
+          "size": 423159784,
+          "checksum": "md5:534f5c721b3b1284d2d94683cacf7976"
+        }
+      ],
+      "quality_issue": "Publisher says 790 total but class counts 360+460 sum to 820; actual counts/subjects/duplicates not audited",
+      "use": "Separate concealment/normal diagnostic; not take/put/touch supervision",
+      "bounded_file_probes": [
+        {
+          "file": "normal.rar",
+          "status": 206,
+          "content_range": "bytes 0-63/423159784",
+          "first_8_bytes_hex": "526172211a070100"
+        },
+        {
+          "file": "shoplifting.rar",
+          "status": 206,
+          "content_range": "bytes 0-63/519596512",
+          "first_8_bytes_hex": "526172211a070100"
+        }
+      ]
+    },
+    {
+      "name": "MNNIT Shoplifting",
+      "publisher_url": "https://data.mendeley.com/datasets/r3yjf35hzr/1",
+      "latest_metadata_url": "https://data.mendeley.com/datasets/r3yjf35hzr/2",
+      "availability": "V1 lists Dataset.zip 725MB; V2 is metadata only; actual transfer not tested",
+      "terms": "CC BY 4.0 per publisher",
+      "use": "Staged concealment diagnostic; separate task"
+    }
+  ],
+  "not_done": [
+    "No bulk download",
+    "No external access request sent",
+    "No auxiliary label set merged with RetailAction"
+  ]
+}

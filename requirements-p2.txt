@@ -1,0 +1,8 @@
+# Install the matching torch/torchvision wheels separately; see docs/app/P2.md.
+-r requirements-app-test.txt
+PyYAML==6.0.3
+pycocotools==2.0.11
+faster-coco-eval==1.8.0
+tensorboard==2.21.0
+# Registry imports in the pinned original implementation need the above packages.
+# No training, evaluation jobs or dataset downloads are run by Sentient.
