@@ -14,12 +14,12 @@ class ShelfStats:
         self.crossings={k:dict(id=k,name=s['name'],positive=0,negative=0) for k,(s,_) in self.lines.items()}
         self.line_sides={}
 
-    def update(self, time_ms, tracks):
+    def update(self, time_ms, tracks, known_inside=None):
         current={k:set() for k in self.areas}
         for t in tracks:
             if t.get('position_status')!='observed': continue
             identity=t['local_track_id']; x1,y1,x2,y2=t['box']; point=((x1+x2)/2,y2)
-            inside={k for k,p in self.polygons.items() if p.contains(point)}
+            inside=known_inside[identity] if known_inside is not None else {k for k,p in self.polygons.items() if p.contains(point)}
             previous=self.last.get(identity)
             contiguous=previous is not None and 0 < time_ms-previous[0] <= 1000
             for k in inside:

@@ -5,6 +5,15 @@ from math import hypot
 from statistics import median
 
 from app.geometry import Line, Polygon
+from app.journeys import (
+    CROSSCHECK_PRIORITY,
+    cross_check,
+    cross_check_totals,
+    footfall,
+    funnel,
+    queue_outcomes,
+    routes,
+)
 from app.shelves import ShelfStats
 
 
@@ -23,6 +32,7 @@ def analyse(rows, geometry, pickups=(), reviews=None, rules=None, physical_time=
     previous = {}
     visits = []
     open_visits = {}
+    open_areas = defaultdict(set)
     transitions = Counter()
     crossings = []
     sides = {}
@@ -41,6 +51,7 @@ def analyse(rows, geometry, pickups=(), reviews=None, rules=None, physical_time=
 
     def close_visit(key, end, reason):
         v = open_visits.pop(key)
+        open_areas[key[0]].discard(key[1])
         v["end_ms"] = end
         v["end_observed"] = reason == "left"
         v["reason"] = reason
@@ -57,7 +68,14 @@ def analyse(rows, geometry, pickups=(), reviews=None, rules=None, physical_time=
         elif last_ms is not None:
             crowds.clear()
         last_ms = ms
-        stats.update(ms, observed)
+        inside_by_track = {}
+        for t in observed:
+            box = t["box"]
+            point = ((box[0] + box[2]) / 2, box[3])
+            inside_by_track[t["local_track_id"]] = {
+                k for k, p in polygons.items() if p.contains(point)
+            }
+        stats.update(ms, observed, inside_by_track)
         area_ids = defaultdict(set)
         for t in row.get("tracks", []):
             identity = t["local_track_id"]
@@ -87,7 +105,7 @@ def analyse(rows, geometry, pickups=(), reviews=None, rules=None, physical_time=
             track["observed_samples"] += 1
             track["last_ms"] = ms
             point = ((box[0] + box[2]) / 2, box[3])
-            inside = {k for k, p in polygons.items() if p.contains(point)}
+            inside = inside_by_track[identity]
             track["area_ids"].update(inside)
             old = previous.get(identity)
             contiguous = old is not None and 0 < ms - old[0] <= 1000
@@ -120,15 +138,13 @@ def analyse(rows, geometry, pickups=(), reviews=None, rules=None, physical_time=
                         entry_observed=contiguous,
                         end_observed=False,
                     )
+                    open_areas[identity].add(k)
                 v = open_visits[key]
                 if contiguous and k in old[1] and physical_time:
                     v["observed_seconds"] += (ms - old[0]) / 1000
                 v["last_ms"] = ms
-            for key in [
-                key
-                for key in open_visits
-                if key[0] == identity and key[1] not in inside
-            ]:
+            for area in [k for k in open_areas[identity] if k not in inside]:
+                key = (identity, area)
                 close_visit(
                     key,
                     ms if contiguous else open_visits[key]["last_ms"],
@@ -231,7 +247,12 @@ def analyse(rows, geometry, pickups=(), reviews=None, rules=None, physical_time=
         v["observed_seconds"] = (
             round(v["observed_seconds"], 2) if physical_time else None
         )
-        if physical_time and v["observed_seconds"] >= rules.get("dwell_limit_s", 20):
+        # Standing in the queue or at the till is what those areas are for.
+        if (
+            physical_time
+            and v["kind"] not in ("queue", "checkout")
+            and v["observed_seconds"] >= rules.get("dwell_limit_s", 20)
+        ):
             incidents.append(
                 dict(
                     id=f"dwell:{v['track_id']}:{v['area_id']}:{v['start_ms']}",
@@ -260,8 +281,6 @@ def analyse(rows, geometry, pickups=(), reviews=None, rules=None, physical_time=
                 name="Pickup candidate",
             )
         )
-    for e in incidents:
-        e["review"] = reviews.get(e["id"], dict(status="pending", notes="", revision=0))
     output_tracks = []
     for t in tracks.values():
         if not t["observed_samples"]:
@@ -277,7 +296,32 @@ def analyse(rows, geometry, pickups=(), reviews=None, rules=None, physical_time=
             3,
         )
         output_tracks.append(t)
+    run_end_ms = rows[-1]["media_ms"] if rows else 0
+    crosscheck = cross_check(
+        pickups, output_tracks, visits, crossings, geometry, run_end_ms, physical_time
+    )
+    for e in incidents:
+        e["review"] = reviews.get(e["id"], dict(status="pending", notes="", revision=0))
+        if e["kind"] == "pickup":
+            e["crosscheck"] = crosscheck[e["id"]]
+            e["priority"] = CROSSCHECK_PRIORITY[crosscheck[e["id"]]["status"]]
     counts = Counter(e["review"]["status"] for e in incidents)
+    snapshot = stats.snapshot()
+    for area in snapshot["areas"]:
+        area["dwell_per_visit_seconds"] = (
+            round(area["observed_dwell_seconds"] / area["visits"], 1)
+            if physical_time and area["visits"]
+            else None
+        )
+        area["pickup_rate"] = (
+            round(area["pickup_alerts"] / area["visits"], 3) if area["visits"] else None
+        )
+    doors = footfall(crossings, geometry) if physical_time else dict(
+        configured=False, entries=None, exits=None, lines=0, method="Elapsed time is unknown for this footage."
+    )
+    journey_routes = (
+        routes(visits) if physical_time else dict(tracks=0, routes=[], flows=[])
+    )
     return dict(
         summary=dict(
             tracks=len(output_tracks),
@@ -285,19 +329,27 @@ def analyse(rows, geometry, pickups=(), reviews=None, rules=None, physical_time=
             peak_people=max((r["people"] for r in timeline), default=0),
             observed_seconds=round(coverage, 2) if physical_time else None,
             observed_fraction=round(observed_samples / max(1, total_samples), 3),
-            area_visits=sum(a["visits"] for a in stats.snapshot()["areas"])
+            area_visits=sum(a["visits"] for a in snapshot["areas"])
             if physical_time and polygons
             else None,
+            entries=doors["entries"],
+            exits=doors["exits"],
+            needs_review=cross_check_totals(crosscheck)["needs_review"],
             pending=counts["pending"],
             accepted=counts["accepted"],
             rejected=counts["rejected"],
             physical_time_supported=physical_time,
         ),
         areas=[
-            a if physical_time else a | {"visits": None}
-            for a in stats.snapshot()["areas"]
+            a if physical_time else a | {"visits": None} for a in snapshot["areas"]
         ],
-        line_counts=stats.snapshot()["crossings"],
+        line_counts=snapshot["crossings"],
+        footfall=doors,
+        routes=journey_routes,
+        funnel=funnel(output_tracks, visits, pickups, crossings, geometry),
+        crosscheck=dict(
+            totals=cross_check_totals(crosscheck), events=list(crosscheck.values())
+        ),
         tracks=sorted(output_tracks, key=lambda t: t["first_ms"]),
         visits=visits,
         crossings=crossings,
@@ -321,6 +373,13 @@ def analyse(rows, geometry, pickups=(), reviews=None, rules=None, physical_time=
             if any(w["complete_entry"] for w in queue_waits)
             else None,
             peak_people=max((r["queue"] for r in timeline), default=0),
+            longest_wait_seconds=max(
+                (w["observed_wait_seconds"] for w in queue_waits), default=None
+            ),
+            limit=rules.get("queue_limit", 3),
+            **queue_outcomes(
+                visits, timeline, rules.get("queue_limit", 3), physical_time
+            ),
             method="Observed transition from waiting area to checkout area; payment and actual service are not inferred.",
         ),
         methods=dict(

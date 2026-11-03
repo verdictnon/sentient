@@ -17,9 +17,12 @@ from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.insights import analyse
+from app.journeys import track_journey
 from app.p1.geometry import load_geometry
 from app.p2.persistence import read_database
-from app.storage import canonical
+from app.rollups import ROLLUP_VERSION, day_rollups, payload as period_payload
+from app.simulation import RULES as SIMULATED_RULES
+from app.storage import canonical, stable_id
 
 UTC = timezone.utc
 DEFAULTS = dict(
@@ -30,6 +33,8 @@ DEFAULTS = dict(
     queue_limit=3,
     shift_start="09:00",
     shift_end="18:00",
+    currency="KZT",
+    avg_item_value=0,
 )
 
 
@@ -71,6 +76,8 @@ class Settings(BaseModel):
     queue_limit: int = Field(default=3, ge=1, le=100)
     shift_start: str = "09:00"
     shift_end: str = "18:00"
+    currency: str = Field(default="KZT", min_length=1, max_length=8)
+    avg_item_value: float = Field(default=0, ge=0, le=100000000)
 
 
 class RecordingContext(BaseModel):
@@ -132,7 +139,10 @@ class Operations:
             CREATE TABLE IF NOT EXISTS ops_context(video_id TEXT PRIMARY KEY,payload TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS ops_reviews(run_key TEXT NOT NULL,event_id TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(run_key,event_id));
             CREATE TABLE IF NOT EXISTS ops_reports(id TEXT PRIMARY KEY,created_at TEXT NOT NULL,payload TEXT NOT NULL,schedule_token TEXT UNIQUE);
-            CREATE TABLE IF NOT EXISTS ops_schedules(id TEXT PRIMARY KEY,payload TEXT NOT NULL);""")
+            CREATE TABLE IF NOT EXISTS ops_schedules(id TEXT PRIMARY KEY,payload TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS ops_simulated_days(store_id TEXT NOT NULL,day TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(store_id,day));
+            CREATE TABLE IF NOT EXISTS ops_rollup_cache(key TEXT PRIMARY KEY,video_id TEXT NOT NULL,payload TEXT NOT NULL);""")
+        self.demo = dict(status="idle", progress=0.0, stage=None, error=None)
 
     def settings(self):
         with self.catalog.connect() as db:
@@ -383,7 +393,7 @@ class Operations:
                 rows,
                 saved["geometry"],
                 run["pickups"],
-                rules=settings,
+                rules=rules_for(video, settings),
                 physical_time=video["source_profile"]["source_kind"] != "sparse_clip",
             )
             result["summary"]["pickup_scoring_available"] = run["kind"] != "track"
@@ -549,24 +559,7 @@ class Operations:
                     )
                 )
                 continue
-            # Prefer scored runs when coverage is equal, then choose the latest.
-            ranked = []
-            for candidate in candidates:
-                run = self.run(candidate["key"])
-                rows = self.observations(run)
-                span = (
-                    rows[-1]["media_ms"] - rows[0]["media_ms"] if len(rows) > 1 else 0
-                )
-                ranked.append(
-                    (
-                        span,
-                        int(run["kind"] != "track"),
-                        candidate["created_at"],
-                        run,
-                        rows,
-                    )
-                )
-            _, _, _, run, rows = max(ranked, key=lambda x: (x[0], x[1], x[2]))
+            run, rows = self.best_run(candidates)
             saved = load_geometry(self.catalog, video_id)
             if scoped:
                 low = (
@@ -597,7 +590,7 @@ class Operations:
                 saved["geometry"],
                 pickups,
                 self.reviews(run["key"]),
-                self.settings(),
+                rules_for(v, self.settings()),
                 v["source_profile"]["source_kind"] != "sparse_clip",
             )
             summary = data["summary"]
@@ -743,6 +736,257 @@ class Operations:
             dated_camera_coverage_seconds=round(coverage, 2),
             coverage_status="available" if items else "no_matching_recordings",
         )
+
+    def best_run(self, candidates):
+        """One run per recording: most coverage, then scored runs, then the latest."""
+        ranked = []
+        for candidate in candidates:
+            run = self.run(candidate["key"])
+            rows = self.observations(run)
+            span = rows[-1]["media_ms"] - rows[0]["media_ms"] if len(rows) > 1 else 0
+            ranked.append(
+                (span, int(run["kind"] != "track"), candidate["created_at"], run, rows)
+            )
+        _, _, _, run, rows = max(ranked, key=lambda x: (x[0], x[1], x[2]))
+        return run, rows
+
+    def recording_days(self, video, context, candidates):
+        """Day rollups for one real recording, cached until its inputs change."""
+        settings = self.settings()
+        saved = load_geometry(self.catalog, video["id"])
+        rules = {
+            k: settings[k]
+            for k in ("timezone", "dwell_limit_s", "crowd_limit", "queue_limit")
+        }
+        key = stable_id(
+            [
+                ROLLUP_VERSION,
+                sorted(c["key"] + c["created_at"] for c in candidates),
+                saved["id"],
+                context.get("started_at_utc"),
+                rules,
+            ]
+        )
+        with self.catalog.connect() as db:
+            row = db.execute(
+                "SELECT payload FROM ops_rollup_cache WHERE key=?", (key,)
+            ).fetchone()
+        if row:
+            return json.loads(row[0])
+        run, rows = self.best_run(candidates)
+        physical = video["source_profile"]["source_kind"] != "sparse_clip"
+        result = analyse(
+            rows, saved["geometry"], run["pickups"], rules=settings, physical_time=physical
+        )
+        result["summary"]["pickup_scoring_available"] = run["kind"] != "track"
+        started = (
+            timestamp(context["started_at_utc"])
+            if context.get("started_at_utc") and physical
+            else None
+        )
+        days = list(
+            day_rollups(
+                result,
+                rows,
+                saved["geometry"],
+                started,
+                zone(settings["timezone"]),
+                video["first_media_time_ms"],
+                video["frame_dims_px"],
+                basis="measured",
+                camera_id=video["camera_id"],
+            ).values()
+        )
+        with self.catalog.connect(write=True) as db:
+            db.execute("DELETE FROM ops_rollup_cache WHERE video_id=?", (video["id"],))
+            db.execute(
+                "INSERT INTO ops_rollup_cache VALUES (?,?,?)",
+                (key, video["id"], json.dumps(days)),
+            )
+        return days
+
+    def stores(self):
+        """Every store in the catalogue, plus whether its data is simulated."""
+        contexts = self.contexts()
+        analysed = defaultdict(list)
+        for run in self.runs():
+            analysed[run["video_id"]].append(run)
+        rows = {}
+        for video in self.catalog.videos():
+            row = rows.setdefault(
+                video["store_id"],
+                dict(
+                    id=video["store_id"],
+                    simulated=False,
+                    recordings=0,
+                    analysed=0,
+                    dated=0,
+                    cameras=[],
+                ),
+            )
+            row["recordings"] += 1
+            row["analysed"] += bool(analysed[video["id"]])
+            row["dated"] += bool(contexts.get(video["id"], {}).get("started_at_utc"))
+            row["simulated"] = row["simulated"] or video["source_profile"].get("simulated", False)
+            if video["camera_id"] not in row["cameras"]:
+                row["cameras"].append(video["camera_id"])
+        with self.catalog.connect() as db:
+            for store, first, last, count in db.execute(
+                "SELECT store_id,MIN(day),MAX(day),COUNT(*) FROM ops_simulated_days GROUP BY store_id"
+            ):
+                if store in rows:
+                    rows[store].update(first_day=first, last_day=last, days=count)
+        return sorted(rows.values(), key=lambda r: (not r["analysed"], r["id"]))
+
+    def store_days(self, store):
+        """All day rollups for a store. Real and simulated data are never combined."""
+        if store["simulated"]:
+            with self.catalog.connect() as db:
+                return [
+                    json.loads(r[0])
+                    for r in db.execute(
+                        "SELECT payload FROM ops_simulated_days WHERE store_id=? ORDER BY day",
+                        (store["id"],),
+                    )
+                ]
+        contexts = self.contexts()
+        analysed = defaultdict(list)
+        for run in self.runs():
+            analysed[run["video_id"]].append(run)
+        days = []
+        for video in self.catalog.videos():
+            if video["store_id"] == store["id"] and analysed[video["id"]]:
+                days.extend(
+                    self.recording_days(
+                        video, contexts.get(video["id"], {}), analysed[video["id"]]
+                    )
+                )
+        return sorted(days, key=lambda d: d["date"])
+
+    def overview(self, store_id=None, start=None, end=None, camera_id=None):
+        """The store view for one day or period, or for undated recordings."""
+        stores = self.stores()
+        store = next((s for s in stores if s["id"] == store_id), None)
+        if store_id and store is None:
+            raise KeyError("Store not found")
+        store = store or (stores[0] if stores else None)
+        if store is None:
+            return dict(store=None, stores=[], mode="empty")
+        settings = self.settings() | (SIMULATED_RULES if store["simulated"] else {})
+        days = self.store_days(store)
+        dated = sorted({d["date"] for d in days if d["date"] != "undated"})
+        if dated:
+            mode = "calendar"
+            last = end or dated[-1]
+            first = start or last
+            if first > last:
+                raise ValueError("The period must start before it ends")
+            span = (
+                datetime.fromisoformat(last) - datetime.fromisoformat(first)
+            ).days + 1
+            earlier_end = (datetime.fromisoformat(first) - timedelta(days=1)).date().isoformat()
+            earlier_start = (datetime.fromisoformat(first) - timedelta(days=span)).date().isoformat()
+            current = [d for d in days if first <= d["date"] <= last]
+            previous = [d for d in days if earlier_start <= d["date"] <= earlier_end]
+        else:
+            mode, first, last, span = "collection", None, None, None
+            current = days
+            previous = []
+        data = period_payload(current, previous, settings)
+        cameras = [
+            dict(
+                video_id=v["id"],
+                camera_id=v["camera_id"],
+                name=v["display_name"],
+                dimensions=v["frame_dims_px"],
+            )
+            for v in self.catalog.videos()
+            if v["store_id"] == store["id"]
+        ]
+        camera = next((c for c in cameras if c["camera_id"] == camera_id), None) or (
+            next(
+                (c for c in cameras if any(d["camera_id"] == c["camera_id"] for d in current)),
+                cameras[0] if cameras else None,
+            )
+        )
+        if camera:
+            own = [d for d in current if d["camera_id"] == camera["camera_id"]]
+            if len(own) != len(current):
+                data["heat"] = period_payload(own, [], settings)["heat"]
+            camera["shapes"] = load_geometry(self.catalog, camera["video_id"])["geometry"]["shapes"]
+        data.update(
+            store=store,
+            stores=stores,
+            mode=mode,
+            start=first,
+            end=last,
+            span_days=span,
+            camera=camera,
+            cameras=cameras,
+            available_days=dated,
+            basis="simulated" if store["simulated"] else "measured",
+            settings={k: settings[k] for k in ("timezone", "queue_limit", "currency", "avg_item_value")},
+        )
+        return data
+
+    def evidence_clip(self, key, identity, media_ms, before_ms=3000, after_ms=6000):
+        """A short annotated clip around a moment; rendered once, then reused."""
+        from app.evidence import render_clip
+
+        data, rows = self.insight(key)
+        video = self.catalog.video(data["video"]["id"])
+        samples = [
+            (r["media_ms"], t["box"], t["position_status"])
+            for r in rows
+            for t in r.get("tracks", [])
+            if t["local_track_id"] == identity
+        ]
+        if not samples:
+            raise KeyError("Track not found")
+        start = max(video["first_media_time_ms"], media_ms - before_ms)
+        end = min(video["last_media_time_ms"], media_ms + after_ms)
+        digest = stable_id(["clip/1", video["media_sha256"], key, identity, start, end])
+        folder = self.catalog.root / "clips"
+        folder.mkdir(exist_ok=True)
+        path = folder / f"{digest}.mp4"
+        if not path.is_file():
+            temporary = folder / f"{digest}.{uuid.uuid4().hex}.partial.mp4"
+            try:
+                render_clip(video, samples, identity, start, end, media_ms, temporary)
+                temporary.replace(path)
+            finally:
+                temporary.unlink(missing_ok=True)
+        return path
+
+    def demo_state(self):
+        with self.catalog.connect() as db:
+            days = db.execute("SELECT COUNT(*) FROM ops_simulated_days").fetchone()[0]
+        state = dict(self.demo)
+        if state["status"] == "idle":
+            state["status"] = "ready" if days else "absent"
+        return state | dict(days=days)
+
+    def build_demo(self, days=14):
+        """Build the simulated store in the background; the UI polls demo_state."""
+        from app.demo_store import seed_store
+
+        with self.lock:
+            if self.demo["status"] == "building":
+                return self.demo_state()
+            self.demo = dict(status="building", progress=0.0, stage="starting", error=None)
+
+        def progress(stage, fraction):
+            self.demo.update(stage=stage, progress=round(fraction, 3))
+
+        def work():
+            try:
+                seed_store(self, days=days, progress=progress)
+                self.demo = dict(status="idle", progress=1.0, stage=None, error=None)
+            except Exception as error:
+                self.demo = dict(status="error", progress=0.0, stage=None, error=str(error))
+
+        Thread(target=work, name="sentient-demo-store", daemon=True).start()
+        return self.demo_state()
 
     def reports(self):
         with self.catalog.connect() as db:
@@ -903,6 +1147,11 @@ class Operations:
             self.thread.join(timeout=15)
 
 
+def rules_for(video, settings):
+    """A simulated floor is busier than the clips the default limits were set on."""
+    return settings | SIMULATED_RULES if video["source_profile"].get("simulated") else settings
+
+
 def safe_csv(value):
     text = str(value if value is not None else "")
     return "'" + text if text.lstrip().startswith(("=", "+", "-", "@")) else text
@@ -964,6 +1213,27 @@ def router(ops):
     def recording_save(video_id: str, body: RecordingContext):
         return ops.save_context(video_id, body.model_dump())
 
+    @r.get("/stores")
+    def stores():
+        return ops.stores()
+
+    @r.get("/overview")
+    def overview(
+        store_id: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
+        camera_id: str | None = None,
+    ):
+        return ops.overview(store_id, start, end, camera_id)
+
+    @r.get("/demo-store")
+    def demo_state():
+        return ops.demo_state()
+
+    @r.post("/demo-store")
+    def demo_build():
+        return ops.build_demo()
+
     @r.get("/runs")
     def runs(video_id: str | None = None):
         return ops.runs(video_id)
@@ -989,6 +1259,17 @@ def router(ops):
             samples=samples,
             visits=[v for v in data["visits"] if v["track_id"] == identity],
             incidents=[e for e in data["incidents"] if e["track_id"] == identity],
+            journey=track_journey(identity, data),
+        )
+
+    @r.get("/runs/{key}/tracks/{identity}/clip")
+    def evidence_clip(
+        key: str, identity: str, media_ms: float = Query(0, allow_inf_nan=False)
+    ):
+        return FileResponse(
+            ops.evidence_clip(key, identity, media_ms),
+            media_type="video/mp4",
+            filename="sentient-evidence.mp4",
         )
 
     @r.get("/runs/{key}/tracks/{identity}/evidence")

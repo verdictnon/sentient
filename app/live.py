@@ -13,10 +13,12 @@ import av
 import numpy as np
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse, FileResponse
+from app.geometry import Line, Polygon
 from app.p1.geometry import load_geometry
 from app.p1.media import available
 from app.p2.config import TrackingConfig
 from app.p2.tracker import ByteTracker
+from app.journeys import line_flow
 from app.shelves import ShelfStats
 
 
@@ -55,7 +57,8 @@ class LiveManager:
                'payload':{'status':'starting','message':'Loading detector and pickup model'},'condition':threading.Condition(),
                'stop':threading.Event(),'done':threading.Event(),'folder':self.root/key}
             s['folder'].mkdir();self.sessions[key]=s
-            self.pool.submit(self._run,s,video,geometry['geometry'])
+            simulated=video['source_profile'].get('simulated')
+            self.pool.submit(self._replay_simulation if simulated else self._run,s,video,geometry['geometry'])
             return self.public(s)
 
     def public(self,s):
@@ -93,7 +96,7 @@ class LiveManager:
     def _run(self,s,video,geometry):
         events=[];processed=0;scored=0;last=None;error=None;seen=set()
         config=TrackingConfig(detector='rtdetrv2_r34',min_person_area_ratio=.005,person_nms_iou=.4,max_tracks=32)
-        stats=ShelfStats(geometry);start=None
+        stats=ShelfStats(geometry);start=None;watch=JourneyWatch(geometry)
         try:
             # All GPU work shares the same lock as offline analysis.
             with self.tracking.inference_lock:
@@ -124,7 +127,7 @@ class LiveManager:
                         seen.update(t['local_track_id'] for t in observed)
                         frames[index]=np.asarray(image);order.append(index)
                         if len(order)>16:frames.pop(order.popleft(),None)
-                        stats.update(ms,observed);windows=[];owners=[]
+                        stats.update(ms,observed);watch.update(ms,observed);windows=[];owners=[]
                         for t in observed:
                             identity=t['local_track_id'];rows=history[identity]
                             if rows and ms-rows[-1][1]>1000:rows.clear()
@@ -162,7 +165,7 @@ class LiveManager:
                         buf=BytesIO();image.save(buf,format='JPEG',quality=80)
                         last={'status':'running','frame_index':index,'media_ms':ms,'source_elapsed_seconds':(ms-first)/1000,
                               'frame_dims_px':list(dimensions),'tracks':tracks,'paths':{k:list(v) for k,v in paths.items()},
-                              'pickups':events[-100:],'pickup_count':len(events),'shelves':stats.snapshot(),'predictions':predictions,
+                              'pickups':watch.annotate(events[-100:]),'pickup_count':len(events),'shelves':stats.snapshot(),'predictions':predictions,
                               'processed_frames':processed,'scored_windows':scored,'unique_tracks':len(seen),'warmup_frames':max((len(history[t['local_track_id']]) for t in observed),default=0),
                               'inference_ms':round(latency,1),'behind_source_ms':round(max(0,(time.monotonic()-start)*1000-(ms-first)),1),
                               'analysis_fps':round(processed/max(.001,time.monotonic()-start),2),'threshold':threshold,
@@ -186,12 +189,115 @@ class LiveManager:
             self.publish(s,(last or {})|summary);s['done'].set()
             with s['condition']:s['condition'].notify_all()
 
+    def _replay_simulation(self,s,video,geometry):
+        """Publish generated tracks at source pace, in the same shape as live inference.
+
+        No detector or action model runs here. Frames come from the simulated clip
+        and every message says so, which lets the whole flow be shown without a GPU.
+        """
+        events=[];processed=0;last=None;error=None;seen=set();start=None;status='stopped'
+        stats=ShelfStats(geometry);watch=JourneyWatch(geometry)
+        try:
+            folder=self.catalog.root/'simulation'
+            with (folder/'clip-observations.jsonl').open(encoding='utf-8') as source:
+                rows=[json.loads(line) for line in source if line.strip()]
+            pending=deque(json.loads((folder/'clip-events.json').read_text(encoding='utf-8')))
+            paths=defaultdict(lambda:deque(maxlen=300));cursor=0
+            start=time.monotonic()
+            with (s['folder']/'observations.jsonl').open('w',encoding='utf-8') as output,av.open(str(available(video))) as container:
+                stream=container.streams.video[0];stream.thread_count=1
+                for frame in container.decode(stream):
+                    if s['stop'].is_set() or cursor>=len(rows):break
+                    ms=float(frame.pts*frame.time_base*1000);row=rows[cursor]
+                    if ms+1e-4<row['media_ms']:continue
+                    cursor+=1
+                    if s['stop'].wait(max(0,start+ms/1000-time.monotonic())):break
+                    tick=time.perf_counter();tracks=row['tracks']
+                    observed=[t for t in tracks if t['position_status']=='observed']
+                    seen.update(t['local_track_id'] for t in observed)
+                    stats.update(ms,observed);watch.update(ms,observed)
+                    visible={t['local_track_id'] for t in tracks}
+                    for t in observed:
+                        b=t['box'];p=paths[t['local_track_id']]
+                        if p and ms-p[-1][1]>1500:p.clear()
+                        p.append([row['frame_index'],ms,(b[0]+b[2])/2,b[3]])
+                    while pending and pending[0]['detected_media_ms']<=ms:
+                        event=pending.popleft();match=next((t for t in observed if t['local_track_id']==event['local_track_id']),None)
+                        if match:stats.pickup(event,match)
+                        events.append(event)
+                    for identity in list(paths):
+                        if identity not in visible:paths.pop(identity,None)
+                    processed+=1
+                    buffer=BytesIO();frame.to_image().convert('RGB').save(buffer,format='JPEG',quality=80)
+                    last={'status':'running','frame_index':row['frame_index'],'media_ms':ms,'source_elapsed_seconds':ms/1000,
+                          'frame_dims_px':video['frame_dims_px'],'tracks':tracks,'paths':{k:list(v) for k,v in paths.items()},
+                          'pickups':watch.annotate(events[-100:]),'pickup_count':len(events),'shelves':stats.snapshot(),'predictions':[],
+                          'processed_frames':processed,'scored_windows':processed,'unique_tracks':len(seen),'warmup_frames':13,
+                          'inference_ms':round((time.perf_counter()-tick)*1000,1),'behind_source_ms':round(max(0,(time.monotonic()-start)*1000-ms),1),
+                          'analysis_fps':round(processed/max(.001,time.monotonic()-start),2),'threshold':.97,'simulated':True,
+                          'image':base64.b64encode(buffer.getvalue()).decode('ascii')}
+                    output.write(json.dumps({k:v for k,v in last.items() if k not in ('image','paths','pickups','shelves')})+'\n');output.flush()
+                    self.publish(s,last)
+            status='stopped' if s['stop'].is_set() else 'completed'
+        except Exception as exc:
+            status='error';error=f'{type(exc).__name__}: {exc}'
+        finally:
+            summary={'id':s['id'],'video_id':video['id'],'geometry_id':s['geometry_id'],'status':status,'error':error,
+                     'processed_frames':processed,'scored_windows':processed,'unique_tracks':len(seen),'threshold':.97,
+                     'pickups':events,'shelves':stats.snapshot(),'elapsed_seconds':round(time.monotonic()-start,2) if start else None,
+                     'model_id':'simulated-pickup-candidates/1','simulated':True,
+                     'execution':'simulated replay; no detector or action model was executed'}
+            (s['folder']/'summary.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
+            self.publish(s,(last or {})|summary);s['done'].set()
+            with s['condition']:s['condition'].notify_all()
+
     def shutdown(self):
         self.closed=True
         for s in self.sessions.values():s['stop'].set()
         self.pool.shutdown(wait=True)
         for model in (self.detector,self.runtime):
             if model is not None:model.close()
+
+
+class JourneyWatch:
+    """Follows pickups during a run so the feed can react before the run is saved."""
+
+    def __init__(self,geometry):
+        self.checkout=[]
+        self.exit=[]
+        self.lines=[]
+        self.has_checkout=any(s['kind']=='checkout' for s in geometry['shapes'])
+        for shape in geometry['shapes']:
+            if shape['kind']=='checkout':self.checkout.append(Polygon(tuple(map(tuple,shape['points']))))
+            elif shape['kind']=='exit':self.exit.append(Polygon(tuple(map(tuple,shape['points']))))
+            elif shape['kind']=='line' and shape.get('positive_means') in ('enter','leave'):
+                self.lines.append((shape,Line(*map(tuple,shape['points']),shape.get('hysteresis_px',5))))
+        self.reached={};self.left={};self.sides={}
+
+    def update(self,ms,tracks):
+        for track in tracks:
+            identity=track['local_track_id'];b=track['box'];point=((b[0]+b[2])/2,b[3])
+            if any(p.contains(point) for p in self.checkout):self.reached.setdefault(identity,ms)
+            if any(p.contains(point) for p in self.exit):self.left.setdefault(identity,ms)
+            for index,(shape,line) in enumerate(self.lines):
+                side=line.side(point);old=self.sides.get((index,identity))
+                if side:
+                    if old and side!=old[0] and line.crossed_segment(old[1],point):
+                        if line_flow(shape,'positive' if side>0 else 'negative')=='leave':self.left[identity]=ms
+                    self.sides[index,identity]=(side,point)
+
+    def annotate(self,events):
+        """Copy events with what is known about each one so far."""
+        result=[]
+        for event in events:
+            identity=event['local_track_id'];anchor=event.get('detected_media_ms',event['end_media_ms'])
+            status='checkout_not_mapped'
+            if self.has_checkout:
+                if identity in self.reached:status='reached_checkout'
+                elif self.left.get(identity,-1)>=anchor:status='left_without_checkout'
+                else:status='still_in_view'
+            result.append(event|{'crosscheck':{'status':status}})
+        return result
 
 
 def router(manager):

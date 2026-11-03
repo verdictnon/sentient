@@ -29,6 +29,11 @@ def validate_geometry(value: dict, dimensions: list) -> dict:
         fields = {"id", "name", "kind", "points"}
         if shape.get("kind") == "line":
             fields.add("hysteresis_px")
+            if "positive_means" in shape:
+                # Declared by the operator; a doorway direction is never inferred.
+                fields.add("positive_means")
+                if shape["positive_means"] not in ("enter", "leave", None):
+                    raise ValueError("A doorway line can only mean entering or leaving")
         if set(shape) != fields or shape["kind"] not in ("line", "zone", "queue", "checkout", "shelf", "exit"):
             raise ValueError("Invalid shape fields or kind")
         if any(not isinstance(shape[k], str) or not shape[k].strip() for k in ("id", "name")):

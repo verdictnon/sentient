@@ -73,8 +73,15 @@ class Polygon:
                     continue
                 if intersects(a, b, *edges[j]):
                     raise ValueError("Polygon must not self-intersect")
+        xs = [p[0] for p in self.vertices]
+        ys = [p[1] for p in self.vertices]
+        # Saved aside because analytics tests every footpoint against every area.
+        object.__setattr__(self, "bounds", (min(xs), min(ys), max(xs), max(ys)))
 
     def contains(self, point: Point) -> bool:
+        left, top, right, bottom = self.bounds
+        if not (left - 1e-9 <= point[0] <= right + 1e-9 and top - 1e-9 <= point[1] <= bottom + 1e-9):
+            return False
         inside = False
         for a, b in zip(self.vertices, self.vertices[1:] + self.vertices[:1]):
             if on_segment(a, b, point):
