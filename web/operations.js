@@ -6,53 +6,65 @@ const ops = {
     signature: '',
     pending: false,
     contextVideo: null,
-    view: 'overview',
+    view: 'store',
     track: null,
     review: null,
     ruleRevision: 0,
     booted: false,
     health: null
 };
-let toastTimer;
 const viewInfo = {
-    overview: ['Monitor', 'Eyes on the floor.', 'Track movement. Investigate signals. Turn footage into decisions.'],
-    tracking: ['Track explorer', 'Every route has context.', 'Follow anonymous tracks through the camera view. Inspect observations and export evidence.'],
-    analytics: ['Analytics', 'Patterns, backed by footage.', 'Observed occupancy, area transitions, directional crossings and queue activity.'],
-    incidents: ['Investigations', 'Signal. Evidence. Decision.', 'Review candidates, record decisions and keep the evidence attached.'],
-    reports: ['Report centre', 'From footage to briefing.', 'Generate shift, daily and monthly reports with traceable source data.'],
-    geometry: ['Camera setup', 'Give the scene context.', 'Map areas, configure tracking and place recordings on your reporting timeline.'],
-    system: ['System & models', 'Know what is running.', 'Measured health, configurable rules and transparent model limits.'],
-    help: ['Demo guide', 'Make the most of each view.', 'A practical guide to geometry, tracking and interpreting your results.']
+    store: ['Store', 'The day on one screen.'],
+    overview: ['Monitor', 'Watch a camera and its signals.'],
+    analytics: ['Analytics', 'Traffic, queues, shelves and routes.'],
+    incidents: ['Investigations', 'Review candidates and record decisions.'],
+    tracking: ['Track explorer', 'Follow anonymous tracks through the camera view.'],
+    reports: ['Report centre', 'Shift, daily and monthly reports with traceable data.'],
+    geometry: ['Camera setup', 'Map areas and place recordings on the calendar.'],
+    system: ['System & models', 'Health, rules and model limits.'],
+    help: ['Demo guide', 'How to get the most out of each view.']
 };
-
-function toast(message, error = false) {
-    clearTimeout(toastTimer);
-    $('toast').textContent = message;
-    $('toast').classList.toggle('error', error);
-    $('toast').hidden = false;
-    toastTimer = setTimeout(() => $('toast').hidden = true, 5500)
-}
-
-function task(fn) {
-    return async (...args) => {
-        try {
-            await fn(...args)
-        } catch (e) {
-            toast(e.message, true)
-        }
-    }
-}
+const VIEW_SECTIONS = {
+    store: ['store-section'],
+    overview: ['filmstrip', 'monitor-work'],
+    tracking: ['filmstrip', 'monitor-work', 'tracking-section'],
+    analytics: ['flow-section', 'analytics-section', 'advanced-analytics'],
+    incidents: ['incidents-section'],
+    reports: ['reports-section'],
+    geometry: ['filmstrip', 'monitor-work', 'context-section'],
+    system: ['system-section'],
+    help: ['monitor-work']
+};
+const ALL_SECTIONS = [...new Set(Object.values(VIEW_SECTIONS).flat())];
 
 function currentRun() {
     return state.live ? null : state.lastLive ? 'live:' + state.lastLive : state.opsRunKey
 }
 
 function shortTrack(id) {
-    return 'Track ' + String(id).split(':').at(-1).padStart(2, '0')
+    return t('Track {id}', {
+        id: String(id).split(':').at(-1).padStart(2, '0')
+    })
 }
 
 function sec(value) {
-    return value === null || value === undefined ? '—' : Number(value).toFixed(1) + 's'
+    return value === null || value === undefined ? '—' : Number(value).toFixed(1) + ' ' + t('s')
+}
+
+function clockTime(ms) {
+    const total = Math.max(0, Math.round(ms / 1000));
+    return `${Math.floor(total/60)}:${String(total%60).padStart(2,'0')}`;
+}
+
+function kindLabel(kind) {
+    return t({
+        shelf: 'Shelf',
+        zone: 'Floor area',
+        line: 'Doorway line',
+        checkout: 'Checkout',
+        queue: 'Queue',
+        exit: 'Exit'
+    } [kind] ?? kind);
 }
 
 function downloadObject(value, name, type = 'application/json') {
@@ -74,44 +86,45 @@ function exportRows(rows, columns, name) {
     };
     downloadObject([columns, ...rows.map(r => columns.map(c => r[c]))].map(r => r.map(cell).join(',')).join('\n'), name, 'text/csv;charset=utf-8')
 }
-navigate = function(name) {
-    if (!viewInfo[name]) name = 'overview';
+
+function navigate(name) {
+    if (!viewInfo[name]) name = 'store';
     ops.view = name;
     document.body.dataset.view = name;
-    const [label, title, subtitle] = viewInfo[name];
-    $('page-label').textContent = label;
-    $('page-title').textContent = title;
-    $('page-subtitle').textContent = subtitle;
+    const [label, subtitle] = viewInfo[name];
+    $('page-label').textContent = t(label);
+    $('page-label').title = t(subtitle);
     document.querySelectorAll('[data-nav]').forEach(b => {
         b.classList.toggle('active', b.dataset.nav === name);
         b.setAttribute('aria-current', b.dataset.nav === name ? 'page' : 'false')
     });
-    for (const [id, visible] of Object.entries({
-            'tracking-section': name === 'tracking',
-            'advanced-analytics': name === 'analytics',
-            'incidents-section': name === 'incidents',
-            'reports-section': name === 'reports',
-            'context-section': name === 'geometry',
-            'system-section': name === 'system'
-        })) $(id).hidden = !visible;
+    const visible = new Set(VIEW_SECTIONS[name]);
+    for (const id of ALL_SECTIONS) $(id).hidden = !visible.has(id);
     if (name === 'geometry' || name === 'help') tab(name);
     else if (state.tab !== 'results') tab('results');
     if (name === 'reports') refreshWorkspace().catch(e => toast(e.message, true));
     if (name === 'system') refreshHealth().catch(e => toast(e.message, true));
     if (name === 'analytics' || name === 'tracking' || name === 'incidents') refreshInsights().catch(e => toast(e.message, true));
+    if (name === 'analytics') renderFlow();
+    if (name === 'analytics') renderAnalytics();
+    if (name === 'store') renderStore();
+    if (name === 'overview' || name === 'tracking') renderTimeline();
+    setSimulatedTape();
     history.replaceState(null, '', `/?${new URLSearchParams({...(state.video?{video:state.video.id}:{}),view:name,...(currentRun()?{run:currentRun()}:{} )})}`);
     window.scrollTo({
         top: 0,
         behavior: 'instant'
     });
     closeMenu();
-};
+}
 
 function syncOperations() {
     const busy = !!(state.live || state.offline) || !state.video;
     $('tracking-only').disabled = busy;
     $('analysis-run').disabled = busy;
-    $('observed-now').textContent = state.video ? `${state.tracks.filter(t=>t.position_status==='observed').length} observed in frame` : 'Awaiting observations';
+    $('observed-now').textContent = state.video ? t('{n} observed in frame', {
+        n: state.tracks.filter(row => row.position_status === 'observed').length
+    }) : t('Awaiting observations');
     $('clear-focus').hidden = !state.focusTrack;
     if (state.live && state.focusTrack) renderLiveFocus();
     if (state.video?.id !== ops.contextVideo && state.video) {
@@ -121,6 +134,7 @@ function syncOperations() {
         $('track-focus').hidden = true;
         $('track-detail').hidden = true;
         fillContext();
+        setSimulatedTape();
         recoverTracking().catch(e => toast(e.message, true))
     }
     fillQueueMappings();
@@ -150,49 +164,117 @@ async function refreshInsights(force = false) {
         ops.key = key;
         ops.availableRuns = await api('/api/ops/runs?video_id=' + state.video.id);
         fillRunSelector();
-        renderOperationViews()
+        renderOperationViews();
+        renderEvents()
     } finally {
         ops.pending = false;
         if (key !== currentRun()) updateDashboard()
     }
 }
 
-function empty(text) {
-    return `<div class="empty-state">${icon('camera')}<h3>${esc(text)}</h3><p>Select a completed run or analyze a recording to populate this view.</p></div>`
+function empty(title, detail = 'Select a completed run or analyze a recording to populate this view.') {
+    return `<div class="empty-state"><h3>${esc(t(title))}</h3><p>${esc(t(detail))}</p></div>`
 }
 
 function renderOperationViews() {
     renderTrackTable();
     renderIncidents();
     renderAnalytics();
-    $('nav-pending').textContent = ops.data?.summary.pending ?? 0;
-    if (ops.track && ops.data?.tracks.some(t => t.id === ops.track)) renderFocus(ops.data.tracks.find(t => t.id === ops.track));
+    renderTimeline();
+    const pending = (ops.data?.incidents ?? []).filter(e => e.review.status === 'pending' && (e.kind === 'pickup' ? ['left_without_checkout', 'lost_before_checkout'].includes(e.crosscheck?.status) : false)).length || ops.data?.summary.pending || 0;
+    $('nav-pending').textContent = pending;
+    $('nav-pending').hidden = !pending;
+    if (ops.track && ops.data?.tracks.some(row => row.id === ops.track)) renderFocus(ops.data.tracks.find(row => row.id === ops.track));
+}
+
+// The recording timeline: how full the view was, and where the signals sit.
+function renderTimeline() {
+    const box = $('timeline'),
+        d = ops.data?.video.id === state.video?.id ? ops.data : null;
+    if (!state.video) {
+        box.hidden = true;
+        return
+    }
+    const rows = d?.timeline ?? [],
+        start = state.video.first_media_time_ms ?? 0,
+        span = Math.max(1, (state.video.last_media_time_ms ?? 1) - start),
+        max = Math.max(1, ...rows.map(row => row.people)),
+        step = Math.max(1, Math.ceil(rows.length / 300)),
+        points = rows.filter((row, i) => i % step === 0).map(row => `${((row.media_ms-start)/span*1000).toFixed(1)},${(38-row.people/max*34).toFixed(1)}`).join(' ');
+    const pins = (d?.incidents ?? []).filter(e => e.kind === 'pickup' || e.kind === 'queue').slice(0, 80).map(e => {
+        const left = Math.max(0, Math.min(100, (e.media_ms - start) / span * 100)),
+            status = e.crosscheck?.status,
+            tone = e.kind === 'queue' ? 'queue' : status === 'left_without_checkout' ? 'flagged' : status === 'reached_checkout' ? 'resolved' : 'pickup',
+            label = e.kind === 'queue' ? t('Queue over the limit') : `${t('Pickup candidate')}: ${outcomeLabel(status)}`;
+        return `<button class="pin ${tone}" style="left:${left}%" data-seek="${e.start_ms ?? e.media_ms}" ${Chart.tipAttributes(clockTime(e.media_ms-start),label)} aria-label="${esc(label)}"></button>`
+    }).join('');
+    box.innerHTML = `<div class="timeline-plot" id="timeline-plot"><svg viewBox="0 0 1000 40" preserveAspectRatio="none" aria-hidden="true"><polygon points="0,40 ${points} 1000,40"/></svg>${pins}<span class="playhead" id="playhead"></span></div><div class="timeline-ticks"><span>0:00</span><span>${clockTime(span)}</span></div>`;
+    box.hidden = false;
+    $('timeline-plot').onclick = task(async event => {
+        if (state.live) return;
+        const pin = event.target.closest('[data-seek]');
+        const rect = $('timeline-plot').getBoundingClientRect();
+        await seekRecording(pin ? Number(pin.dataset.seek) : start + (event.clientX - rect.left) / rect.width * span);
+    });
+    movePlayhead();
+}
+
+function movePlayhead() {
+    const head = $('playhead');
+    if (!head || !state.video) return;
+    const start = state.video.first_media_time_ms ?? 0,
+        span = Math.max(1, (state.video.last_media_time_ms ?? 1) - start);
+    head.style.left = Math.max(0, Math.min(100, (state.ms - start) / span * 100)) + '%';
+}
+
+function announceOutcomes(previous, next) {
+    const before = new Map(previous.map(e => [e.id, e.crosscheck?.status]));
+    for (const event of next) {
+        if (event.crosscheck?.status === 'left_without_checkout' && before.get(event.id) !== 'left_without_checkout') toast(t('{track} left without reaching a till. Review the case when the run ends.', {
+            track: shortTrack(event.local_track_id)
+        }), true);
+    }
 }
 
 function renderTrackTable() {
     if (!ops.data) {
-        $('track-total').textContent = state.live ? 'Live tracking active' : 'No selected run';
-        $('track-table').innerHTML = '<tr><td colspan="7">Complete a run to inspect track histories. Click boxes during live inference to focus a visible track.</td></tr>';
+        $('track-total').textContent = t(state.live ? 'Live tracking active' : 'No selected run');
+        $('track-table').innerHTML = `<tr><td colspan="7">${esc(t('Complete a run to inspect track histories. Click boxes during live inference to focus a visible track.'))}</td></tr>`;
         return
     }
     const query = $('track-search').value.trim().toLowerCase(),
         minimum = Number($('track-min').value) || 0,
-        areas = new Map(ops.data.areas.map(a => [a.id, a.name]));
-    const rows = ops.data.tracks.filter(t => (t.id + ' ' + t.area_ids.map(k => areas.get(k)).join(' ')).toLowerCase().includes(query) && (t.observed_seconds ?? 0) >= minimum);
+        areas = new Map(ops.data.areas.map(a => [a.id, t(a.name)]));
+    const rows = ops.data.tracks.filter(row => (row.id + ' ' + row.area_ids.map(k => areas.get(k)).join(' ')).toLowerCase().includes(query) && (row.observed_seconds ?? 0) >= minimum);
     const sort = $('track-sort').value;
     rows.sort((a, b) => sort === 'dwell' ? (b.observed_seconds ?? 0) - (a.observed_seconds ?? 0) : sort === 'alerts' ? b.pickups - a.pickups : a.first_ms - b.first_ms);
-    $('track-total').textContent = `${rows.length} / ${ops.data.tracks.length} tracks`;
-    $('track-table').innerHTML = rows.map(t => `<tr><td><span class="track-pill">${esc(shortTrack(t.id))}</span><small>Camera local</small></td><td>${(t.first_ms/1000).toFixed(1)}–${(t.last_ms/1000).toFixed(1)}s</td><td>${sec(t.observed_seconds)}</td><td>${esc(t.area_ids.map(k=>areas.get(k)??k).join(', ')||'No mapped area')}</td><td>${Math.round(t.observed_fraction*100)}% observed<small>${Math.max(0,t.segments-1)} observation gaps</small></td><td><span class="signal-pill">${t.pickups??'—'}</span></td><td><button data-focus-track="${esc(t.id)}">Inspect ↗</button></td></tr>`).join('') || '<tr><td colspan="7">No tracks match these filters.</td></tr>';
+    $('track-total').textContent = t('{a} of {b} tracks', {
+        a: rows.length,
+        b: ops.data.tracks.length
+    });
+    $('track-table').innerHTML = rows.map(row => `<tr><td><span class="track-pill">${esc(shortTrack(row.id))}</span></td><td>${(row.first_ms/1000).toFixed(1)}–${(row.last_ms/1000).toFixed(1)} ${esc(t('s'))}</td><td>${sec(row.observed_seconds)}</td><td>${esc(row.area_ids.map(k=>areas.get(k)??k).join(', ')||t('No mapped area'))}</td><td>${t('{n}% observed',{n:Math.round(row.observed_fraction*100)})}<small>${t('{n} gaps',{n:Math.max(0,row.segments-1)})}</small></td><td>${row.pickups??'—'}</td><td><button class="subtle-button" data-focus-track="${esc(row.id)}">${esc(t('Inspect'))}</button></td></tr>`).join('') || `<tr><td colspan="7">${esc(t('No tracks match these filters.'))}</td></tr>`;
     document.querySelectorAll('[data-focus-track]').forEach(b => b.onclick = task(() => selectTrack(b.dataset.focusTrack, true)));
 }
 for (const id of ['track-search', 'track-sort', 'track-min']) $(id).addEventListener(id === 'track-search' ? 'input' : 'change', renderTrackTable);
 $('tracks-export').onclick = task(() => {
-    if (!ops.data) throw Error('Select a completed run first.');
-    exportRows(ops.data.tracks.map(t => ({
-        ...t,
-        area_ids: t.area_ids.join(';')
+    if (!ops.data) throw Error(t('Select a completed run first.'));
+    exportRows(ops.data.tracks.map(row => ({
+        ...row,
+        area_ids: row.area_ids.join(';')
     })), ['id', 'first_ms', 'last_ms', 'observed_seconds', 'observed_samples', 'predicted_samples', 'observed_fraction', 'segments', 'path_pixels', 'area_ids', 'pickups'], 'sentient-tracks.csv')
 });
+
+function journeyStep(step) {
+    const time = `<time>${clockTime(step.ms)}</time>`;
+    if (step.type === 'crossing') return `<li class="door">${time}<span>${esc(step.flow==='enter'?t('Came in through {name}',{name:t(step.name)}):step.flow==='leave'?t('Left through {name}',{name:t(step.name)}):t('Crossed {name}',{name:t(step.name)}))}</span></li>`;
+    if (step.type === 'pickup') return `<li class="pickup">${time}<span>${esc(t('Pickup candidate, {score}%',{score:(step.score*100).toFixed(1)}))}</span></li>`;
+    return `<li class="${esc(step.kind)}">${time}<span>${esc(t(step.name))}${step.seconds?` <small>${sec(step.seconds)}</small>`:''}</span></li>`;
+}
+
+function journeyList(steps) {
+    const shown = steps.filter(step => step.type !== 'visit' || (step.seconds ?? 0) >= 2 || ['checkout', 'queue', 'exit'].includes(step.kind));
+    return shown.length ? `<ol class="journey">${shown.map(journeyStep).join('')}</ol>` : `<p class="field-note">${esc(t('No mapped areas on this track.'))}</p>`;
+}
 async function selectTrack(identity, openDetail = false) {
     state.focusTrack = identity;
     ops.track = identity;
@@ -205,14 +287,13 @@ async function selectTrack(identity, openDetail = false) {
     const data = await api(`/api/ops/runs/${encodeURIComponent(key)}/tracks/${encodeURIComponent(identity)}`);
     if (key !== currentRun() || identity !== ops.track) return;
     renderFocus(data.track);
-    const t = data.track,
-        first = data.samples.find(s => s.position_status === 'observed');
+    const row = data.track;
     $('track-detail').hidden = false;
-    $('track-detail').innerHTML = `<div class="detail-header"><div><div class="eyebrow">TRACK INVESTIGATION</div><h3>${esc(shortTrack(identity))} <span class="badge">Camera local</span></h3></div><button id="detail-clear">Clear selection ×</button></div><div class="detail-grid"><a href="${evidenceURL(identity,t.first_ms)}" download><img src="${evidenceURL(identity,t.first_ms)}" alt="Observed source frame for ${esc(shortTrack(identity))}"></a><div><div class="track-stat-grid"><div><small>First observed</small><b>${(t.first_ms/1000).toFixed(1)}s</b></div><div><small>Last observed</small><b>${(t.last_ms/1000).toFixed(1)}s</b></div><div><small>Observed time</small><b>${sec(t.observed_seconds)}</b></div><div><small>Gaps</small><b>${Math.max(0,t.segments-1)}</b></div></div><div class="toolbar"><button id="track-first" class="primary">Jump to first observation</button><a class="button-link" href="${evidenceURL(identity,t.first_ms)}" download>Evidence PNG ↗</a><button id="trajectory-export">Trajectory CSV</button></div><p class="field-note">${Math.round(t.observed_fraction*100)}% of sampled track records are observed. Predicted boxes do not contribute to dwell. Distance, when available, is ${t.path_pixels??'unknown'} image pixels.</p></div></div><div class="visit-ledger"><h3>Area visit ledger</h3>${data.visits.map(v=>`<div class="visit-row"><span>${esc(v.name)}</span><span>${(v.start_ms/1000).toFixed(1)}–${(v.end_ms/1000).toFixed(1)}s</span><span>${sec(v.observed_seconds)} observed</span><span class="badge">${v.entry_observed&&v.end_observed?'Observed entry & exit':'Partial visit'}</span><button data-visit-ms="${v.start_ms}">Inspect ↗</button></div>`).join('')||'<p class="field-note">No mapped area visits for this track.</p>'}</div>`;
+    $('track-detail').innerHTML = `<div class="detail-header"><h3>${esc(shortTrack(identity))}</h3><span class="badge">${esc(t('Camera local'))}</span><button id="detail-clear" class="subtle-button">${esc(t('Clear selection'))}</button></div><div class="detail-grid"><a class="detail-image" href="${evidenceURL(identity,row.first_ms)}" download><img src="${evidenceURL(identity,row.first_ms)}" alt="${esc(t('Observed source frame for {track}',{track:shortTrack(identity)}))}"></a><div><div class="track-stat-grid"><div><small>${esc(t('First observed'))}</small><b>${sec(row.first_ms/1000)}</b></div><div><small>${esc(t('Last observed'))}</small><b>${sec(row.last_ms/1000)}</b></div><div><small>${esc(t('Observed time'))}</small><b>${sec(row.observed_seconds)}</b></div><div><small>${esc(t('Gaps'))}</small><b>${Math.max(0,row.segments-1)}</b></div></div><div class="toolbar"><button id="track-first" class="primary">${esc(t('Jump to first observation'))}</button><a class="button-link" href="${evidenceURL(identity,row.first_ms)}" download>${esc(t('Evidence PNG'))}</a><button id="trajectory-export">${esc(t('Trajectory CSV'))}</button></div><p class="field-note">${esc(t('{n}% of sampled track records are observed. Predicted boxes do not add dwell. Route length is {px} image pixels.',{n:Math.round(row.observed_fraction*100),px:row.path_pixels??'—'}))}</p></div><div class="detail-journey"><h4>${esc(t('Journey'))}</h4>${journeyList(data.journey ?? [])}</div></div><div class="visit-ledger"><h3>${esc(t('Area visit ledger'))}</h3>${data.visits.map(v=>`<div class="visit-row"><span>${esc(t(v.name))}</span><span>${(v.start_ms/1000).toFixed(1)}–${(v.end_ms/1000).toFixed(1)} ${esc(t('s'))}</span><span>${esc(t('{time} observed',{time:sec(v.observed_seconds)}))}</span><span class="badge">${esc(t(v.entry_observed&&v.end_observed?'Observed entry and exit':'Partial visit'))}</span><button class="subtle-button" data-visit-ms="${v.start_ms}">${esc(t('Inspect'))}</button></div>`).join('')||`<p class="field-note">${esc(t('No mapped area visits for this track.'))}</p>`}</div>`;
     $('detail-clear').onclick = clearFocus;
     $('track-first').onclick = task(async () => {
         navigate('tracking');
-        await seekRecording(t.first_ms)
+        await seekRecording(row.first_ms)
     });
     $('trajectory-export').onclick = () => exportRows(data.samples.map(s => ({
         ...s,
@@ -235,18 +316,22 @@ function evidenceURL(identity, ms) {
     return `/api/ops/runs/${encodeURIComponent(currentRun())}/tracks/${encodeURIComponent(identity)}/evidence?media_ms=${ms}`
 }
 
+function clipURL(identity, ms) {
+    return `/api/ops/runs/${encodeURIComponent(currentRun())}/tracks/${encodeURIComponent(identity)}/clip?media_ms=${ms}`
+}
+
 function renderFocus(track) {
     $('track-focus').hidden = false;
-    $('track-focus').innerHTML = `<div class="focus-title"><span>FOCUS / ${esc(shortTrack(track.id))}</span><button id="focus-dismiss" class="icon-button" aria-label="Clear selected track">×</button></div><div class="focus-stats"><div><small>Observed time</small><b>${sec(track.observed_seconds)}</b></div><div><small>Pickup candidates</small><b>${track.pickups??'—'}</b></div></div><div class="toolbar"><button id="focus-investigate">Track details ↗</button><button id="focus-start">First seen ${(track.first_ms/1000).toFixed(1)}s</button></div>`;
+    $('track-focus').innerHTML = `<div class="focus-title"><b>${esc(shortTrack(track.id))}</b><button id="focus-dismiss" class="icon-button" aria-label="${esc(t('Clear selected track'))}"><svg class="icon"><use href="#i-close"/></svg></button></div><div class="focus-stats"><div><small>${esc(t('Observed time'))}</small><b>${sec(track.observed_seconds)}</b></div><div><small>${esc(t('Pickup candidates'))}</small><b>${track.pickups??'—'}</b></div></div><div class="toolbar"><button id="focus-investigate" class="subtle-button">${esc(t('Track details'))}</button><button id="focus-start" class="subtle-button">${esc(t('First seen {time}',{time:sec(track.first_ms/1000)}))}</button></div>`;
     $('focus-dismiss').onclick = clearFocus;
     $('focus-investigate').onclick = task(() => selectTrack(track.id, true));
     $('focus-start').onclick = task(() => seekRecording(track.first_ms));
 }
 
 function renderLiveFocus() {
-    const t = state.tracks.find(t => t.local_track_id === state.focusTrack);
+    const row = state.tracks.find(item => item.local_track_id === state.focusTrack);
     $('track-focus').hidden = false;
-    $('track-focus').innerHTML = `<div class="focus-title"><span>LIVE / ${esc(shortTrack(state.focusTrack))}</span><button id="focus-dismiss" class="icon-button" aria-label="Clear selected track">×</button></div><p class="field-note">${t?(t.position_status==='observed'?'Observed in this frame':'Tracker prediction'):'Temporarily outside the visible track set'}. Full trajectory and evidence become available when the run is saved.</p>`;
+    $('track-focus').innerHTML = `<div class="focus-title"><b>${esc(shortTrack(state.focusTrack))}</b><button id="focus-dismiss" class="icon-button" aria-label="${esc(t('Clear selected track'))}"><svg class="icon"><use href="#i-close"/></svg></button></div><p class="field-note">${esc(t(row?(row.position_status==='observed'?'Observed in this frame.':'Tracker prediction.'):'Temporarily outside the visible track set.'))} ${esc(t('Full trajectory and evidence become available when the run is saved.'))}</p>`;
     $('focus-dismiss').onclick = clearFocus;
 }
 
@@ -272,7 +357,45 @@ $('step-back').onclick = task(() => seekRecording(Math.max(0, state.ms - 200)));
 $('step-forward').onclick = task(() => seekRecording(state.ms + 200));
 $('open-investigations').onclick = () => navigate('incidents');
 
+const REVIEW_STATUSES = ['left_without_checkout', 'lost_before_checkout'];
+
+function renderCaseSummary() {
+    const totals = ops.data?.crosscheck?.totals;
+    if (!totals || !ops.data.incidents.some(e => e.kind === 'pickup')) {
+        $('case-summary').hidden = true;
+        return
+    }
+    $('case-summary').hidden = false;
+    const cells = [
+        ['left_without_checkout', 'Left without a till', 'Saw the pickup, then the door. No till in between.'],
+        ['lost_before_checkout', 'Track lost', 'The track ended before a till. It may have split in two.'],
+        ['still_in_view', 'Still in view', 'The recording ended before the outcome.'],
+        ['reached_checkout', 'Reached a till', 'Nothing to review.'],
+        ['checkout_not_mapped', 'No till on this camera', 'Draw a checkout area to check these.']
+    ].filter(([key]) => totals[key] || !['checkout_not_mapped', 'still_in_view'].includes(key));
+    $('case-summary').innerHTML = cells.map(([key, label, note]) => `<button class="case-count ${key}" data-case-filter="${key}"><b>${number(totals[key])}</b><span>${esc(t(label))}</span><small>${esc(t(note))}</small></button>`).join('');
+    document.querySelectorAll('[data-case-filter]').forEach(b => b.onclick = () => {
+        $('incident-kind').value = REVIEW_STATUSES.includes(b.dataset.caseFilter) ? 'review' : 'pickup';
+        renderIncidents()
+    });
+}
+
+function incidentTitle(e) {
+    if (e.kind === 'pickup') return t('Pickup candidate');
+    return t(e.name);
+}
+
+function incidentKind(e) {
+    return t({
+        pickup: 'Pickup',
+        dwell: 'Extended dwell',
+        crowding: 'Crowding',
+        queue: 'Queue'
+    } [e.kind] ?? e.kind);
+}
+
 function renderIncidents() {
+    renderCaseSummary();
     if (!ops.data) {
         $('incident-list').innerHTML = empty(state.live ? 'The run is still being saved' : 'No completed run selected');
         $('incident-total').textContent = '';
@@ -280,31 +403,69 @@ function renderIncidents() {
     }
     const kind = $('incident-kind').value,
         status = $('incident-status').value;
-    const events = ops.data.incidents.filter(e => (kind === 'all' || e.kind === kind) && (status === 'all' || e.review.status === status));
-    $('incident-total').textContent = `${events.length} signals · ${ops.data.summary.pending} pending`;
-    $('incident-list').innerHTML = events.map(e => `<button class="signal-card" data-signal="${esc(e.id)}"><div class="signal-top"><span class="signal-type">${esc(e.kind)}</span><span class="review-badge ${e.review.status}">${e.review.status==='rejected'?'Dismissed':e.review.status==='accepted'?'Accepted':'Pending review'}</span></div><h3>${esc(e.name)}</h3><p>${e.track_id?esc(shortTrack(e.track_id)):'Area occupancy'} · ${(e.media_ms/1000).toFixed(1)}s${e.score!==undefined?' · '+(e.score*100).toFixed(1)+'% score':''}${e.count?' · peak '+e.count+' tracks':''}${e.seconds?' · '+sec(e.seconds)+' observed':''}</p>${e.review.notes?`<p class="review-note">${esc(e.review.notes).slice(0,180)}</p>`:''}<span class="signal-bottom"><span>${esc(ops.data.video.camera_id)}</span><span>Review signal ↗</span></span></button>`).join('') || empty('No signals match these filters');
+    const events = ops.data.incidents.filter(e => (kind === 'all' || (kind === 'review' ? REVIEW_STATUSES.includes(e.crosscheck?.status) : e.kind === kind)) && (status === 'all' || e.review.status === status)).sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9) || a.media_ms - b.media_ms);
+    $('incident-total').textContent = t('{n} signals, {p} pending', {
+        n: events.length,
+        p: ops.data.summary.pending
+    });
+    $('incident-list').innerHTML = events.map(e => {
+        const outcome = e.crosscheck?.status,
+            image = e.track_id && e.kind === 'pickup' ? `<img loading="lazy" src="${evidenceURL(e.track_id,e.media_ms)}&crop=true" alt="">` : '',
+            facts = [e.track_id ? shortTrack(e.track_id) : t('Area occupancy'), clockTime(e.media_ms), e.score !== undefined ? (e.score * 100).toFixed(1) + '%' : null, e.count ? t('peak {n} tracks', {
+                n: e.count
+            }) : null, e.seconds ? t('{time} observed', {
+                time: sec(e.seconds)
+            }) : null, e.crosscheck?.shelf_name ? t(e.crosscheck.shelf_name) : null].filter(Boolean).join(', ');
+        return `<button class="signal-card ${outcome??e.kind}" data-signal="${esc(e.id)}">${image}<span class="signal-body"><span class="signal-top"><span class="signal-type">${esc(incidentKind(e))}</span><span class="review-badge ${e.review.status}">${esc(t(e.review.status==='rejected'?'Dismissed':e.review.status==='accepted'?'Accepted':'Pending review'))}</span></span><b class="signal-title">${esc(outcome?outcomeLabel(outcome):incidentTitle(e))}</b><span class="signal-facts">${esc(facts)}</span>${e.review.notes?`<span class="review-note">${esc(e.review.notes).slice(0,180)}</span>`:''}</span></button>`
+    }).join('') || empty('No signals match these filters', 'Change a filter to see more signals.');
     document.querySelectorAll('[data-signal]').forEach(b => b.onclick = () => openIncident(b.dataset.signal));
 }
 $('incident-kind').onchange = $('incident-status').onchange = renderIncidents;
 
-function openIncident(id) {
-    const e = ops.data?.incidents.find(e => e.id === id);
+function verdictText(e) {
+    const check = e.crosscheck;
+    if (!check) return '';
+    return t({
+        left_without_checkout: 'The same track was followed from the pickup to the door without entering a checkout area. Look at the clip before deciding.',
+        lost_before_checkout: 'The track ended before a checkout. It may have left the camera view or split into a new ID.',
+        still_in_view: 'The recording ended while the track was still in view, so the outcome is unknown.',
+        reached_checkout: 'The track entered a checkout area after the pickup.',
+        checkout_not_mapped: 'This camera has no mapped checkout, so the pickup cannot be cross-checked.',
+        unavailable: 'Elapsed time is unknown for this footage.'
+    } [check.status] ?? '');
+}
+async function openIncident(id) {
+    const e = ops.data?.incidents.find(item => item.id === id);
     if (!e) return;
     ops.review = {
         ...e,
         run_key: currentRun()
     };
-    $('incident-title').textContent = e.name;
-    $('incident-meta').textContent = `${ops.data.video.camera_id} · ${(e.media_ms/1000).toFixed(1)}s source time · ${e.track_id?shortTrack(e.track_id):'Area signal'}`;
-    $('incident-evidence').innerHTML = e.track_id ? `<img src="${evidenceURL(e.track_id,e.media_ms)}" alt="Source frame with the observed person marked">` : `<p>${e.kind==='dwell'?'Extended observed presence':'Configured occupancy threshold exceeded'} in ${esc(e.name)}. Inspect the recording before recording your decision.</p>`;
+    $('incident-title').textContent = e.crosscheck ? outcomeLabel(e.crosscheck.status) : incidentTitle(e);
+    $('incident-meta').textContent = [ops.data.video.camera_id, clockTime(e.media_ms), e.track_id ? shortTrack(e.track_id) : t('Area signal'), e.score !== undefined ? t('model score {n}%', {
+        n: (e.score * 100).toFixed(1)
+    }) : null].filter(Boolean).join(', ');
+    $('incident-evidence').innerHTML = e.track_id ? `<video id="incident-video" src="${clipURL(e.track_id,e.media_ms)}" poster="${evidenceURL(e.track_id,e.media_ms)}" controls muted autoplay playsinline></video>` : `<p>${esc(t(e.kind==='dwell'?'Extended observed presence in {name}. Inspect the recording before recording your decision.':'Configured occupancy threshold exceeded in {name}. Inspect the recording before recording your decision.',{name:t(e.name)}))}</p>`;
     $('incident-image').hidden = !e.track_id;
-    if (e.track_id) $('incident-image').href = evidenceURL(e.track_id, e.media_ms);
+    $('incident-clip').hidden = !e.track_id;
+    if (e.track_id) {
+        $('incident-image').href = evidenceURL(e.track_id, e.media_ms);
+        $('incident-clip').href = clipURL(e.track_id, e.media_ms);
+    }
     $('incident-decision').value = e.review.status;
     $('incident-notes').value = e.review.notes ?? '';
     $('incident-message').textContent = '';
+    $('incident-journey').innerHTML = e.crosscheck ? `<p class="verdict ${e.crosscheck.status}">${esc(verdictText(e))}</p>` : '';
     $('incident-dialog').showModal();
+    if (e.track_id) {
+        const data = await api(`/api/ops/runs/${encodeURIComponent(ops.review.run_key)}/tracks/${encodeURIComponent(e.track_id)}`);
+        if (ops.review?.id === id) $('incident-journey').innerHTML += journeyList(data.journey ?? []);
+    }
 }
-$('incident-close').onclick = () => $('incident-dialog').close();
+$('incident-close').onclick = () => {
+    $('incident-video')?.pause();
+    $('incident-dialog').close()
+};
 $('incident-inspect').onclick = task(async () => {
     const e = ops.review;
     $('incident-dialog').close();
@@ -331,8 +492,9 @@ $('incident-form').onsubmit = async event => {
             for (const status of ['pending', 'accepted', 'rejected']) ops.data.summary[status] = ops.data.incidents.filter(s => s.review.status === status).length;
             renderOperationViews()
         }
+        $('incident-video')?.pause();
         $('incident-dialog').close();
-        toast('Review saved with this source run.');
+        toast(t('Review saved with this source run.'));
     } catch (e) {
         $('incident-message').textContent = e.message
     } finally {
@@ -340,12 +502,13 @@ $('incident-form').onsubmit = async event => {
     }
 };
 $('incidents-export').onclick = task(() => {
-    if (!ops.data) throw Error('Select a completed run first.');
+    if (!ops.data) throw Error(t('Select a completed run first.'));
     exportRows(ops.data.incidents.map(e => ({
         ...e,
         review_status: e.review.status,
-        review_notes: e.review.notes
-    })), ['id', 'kind', 'track_id', 'media_ms', 'end_ms', 'name', 'score', 'review_status', 'review_notes'], 'sentient-signals.csv')
+        review_notes: e.review.notes,
+        crosscheck_status: e.crosscheck?.status ?? ''
+    })), ['id', 'kind', 'track_id', 'media_ms', 'end_ms', 'name', 'score', 'crosscheck_status', 'review_status', 'review_notes'], 'sentient-signals.csv')
 });
 
 function renderAnalytics() {
@@ -357,42 +520,43 @@ function renderAnalytics() {
     const d = ops.data,
         s = d.summary;
     $('ops-kpis').innerHTML = [
-        ['Peak observed', s.peak_people, 'Simultaneous tracks in one view'],
-        ['Observed footage', sec(s.observed_seconds), 'Between sampled source frames'],
-        ['Positive crossings', d.line_counts.length ? d.crossings.filter(c => c.direction === 'positive').length : '—', d.line_counts.length + ' directional lines configured'],
-        ['Observed sample share', Math.round(s.observed_fraction * 100) + '%', 'Observed / sampled track records']
-    ].map(([l, v, n]) => `<article><small>${l}</small><b>${v}</b><p>${esc(n)}</p></article>`).join('');
-    const rows = d.timeline,
-        W = 600,
-        H = 190,
-        left = 28,
-        top = 12,
-        bottom = 27,
-        right = 9,
-        max = Math.max(1, ...rows.map(r => r.people)),
-        start = rows[0]?.media_ms ?? 0,
-        end = rows.at(-1)?.media_ms ?? 1,
-        span = Math.max(1, end - start),
-        height = H - top - bottom;
-    const points = rows.filter((r, i) => i % Math.max(1, Math.ceil(rows.length / 250)) === 0 || i === rows.length - 1).map(r => [left + (r.media_ms - start) / span * (W - left - right), top + height - r.people / max * height]);
-    const line = points.map(p => p.join(',')).join(' ');
-    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Observed occupancy along the recording">`;
-    for (let i = 0; i < 3; i++) {
-        const y = top + i * height / 2;
-        svg += `<line x1="${left}" x2="${W-right}" y1="${y}" y2="${y}" stroke="#354a2c" stroke-dasharray="3 4"/><text x="${left-8}" y="${y+3}" text-anchor="end">${(max*(1-i/2)).toFixed(max%2?1:0)}</text>`
+        [t('Most in view'), number(s.peak_people)],
+        [t('Observed footage'), sec(s.observed_seconds)],
+        [t('Entries'), s.entries ?? '—'],
+        [t('Exits'), s.exits ?? '—'],
+        [t('Observed sample share'), Math.round(s.observed_fraction * 100) + '%']
+    ].map(([label, value]) => statTile(label, value)).join('');
+    const rows = d.timeline;
+    if (ops.view === 'analytics' && rows.length) {
+        Chart.area($('occupancy-chart'), rows.map(row => ({
+            x: row.media_ms,
+            y: row.people
+        })), {
+            height: 190,
+            aria: t('Observed occupancy along the recording'),
+            tick: x => clockTime(x),
+            tipValue: point => t('{n} people', {
+                n: point.y
+            }),
+            tipLabel: point => clockTime(point.x)
+        });
+        $('occupancy-chart').onclick = task(async event => {
+            const rect = $('occupancy-chart').getBoundingClientRect(),
+                span = rows.at(-1).media_ms - rows[0].media_ms,
+                ms = rows[0].media_ms + Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * span;
+            navigate('tracking');
+            await seekRecording(ms)
+        });
     }
-    if (points.length) svg += `<polygon points="${left},${top+height} ${line} ${points.at(-1)[0]},${top+height}" fill="#a9de5c14"/><polyline points="${line}" stroke="#b2eb72" fill="none" stroke-width="2"/>`;
-    for (let i = 0; i <= 4; i++) svg += `<text x="${left+i*(W-left-right)/4}" y="${H-5}" text-anchor="middle">${((start+i*span/4)/1000).toFixed(1)}s</text>`;
-    $('occupancy-chart').innerHTML = svg + '</svg>';
-    $('occupancy-chart').onclick = task(async event => {
-        const r = $('occupancy-chart').getBoundingClientRect();
-        const ms = start + Math.max(0, Math.min(1, (event.clientX - r.left) / r.width)) * span;
-        navigate('tracking');
-        await seekRecording(ms)
-    });
-    $('transition-chart').innerHTML = d.transitions.length ? d.transitions.slice(0, 8).map(t => `<div class="transition-row"><span>${esc(t.from_name)}</span><span class="route-arrow">→</span><span>${esc(t.to_name)}</span><b>${t.count}</b></div>`).join('') : '<p class="empty-chart">No continuous transitions between distinct areas were observed.</p>';
-    $('crossing-cards').innerHTML = d.line_counts.length ? d.line_counts.map(l => `<div class="crossing-row"><span>${esc(l.name)}</span><b>+${l.positive}</b><span>positive</span><b>−${l.negative}</b><span>negative</span></div>`).join('') : '<p class="empty-chart">Draw a doorway line to measure directional crossings.</p>';
-    $('queue-summary').innerHTML = `<div class="queue-values"><div><b>${d.areas.some(a=>a.kind==='queue')?d.queue.peak_people:'—'}</b><small>Peak observed waiting tracks</small></div><div><b>${sec(d.queue.median_complete_wait_seconds)}</b><small>Median observed entry → checkout</small></div></div><p class="queue-method">${esc(d.queue.method)} ${d.queue.observed_waits.length} observed transitions; ${d.queue.observed_waits.filter(w=>w.complete_entry).length} with an observed waiting-area entry.</p>`;
+    const flows = d.routes?.flows ?? [];
+    $('transition-chart').innerHTML = flows.length ? flows.slice(0, 8).map(row => `<div class="transition-row"><span>${esc(t(row.from_name))}</span><span class="route-arrow" aria-hidden="true"></span><span>${esc(t(row.to_name))}</span><b>${row.count}</b></div>`).join('') : `<p class="empty-chart">${esc(t('No movement between distinct areas was observed.'))}</p>`;
+    $('crossing-cards').innerHTML = d.line_counts.length ? d.line_counts.map(row => {
+        const shape = d.geometry.geometry.shapes.find(s => s.id === row.id),
+            positive = shape?.positive_means === 'enter' ? t('in') : shape?.positive_means === 'leave' ? t('out') : t('positive'),
+            negative = shape?.positive_means === 'enter' ? t('out') : shape?.positive_means === 'leave' ? t('in') : t('negative');
+        return `<div class="crossing-row"><span>${esc(t(row.name))}</span><b>${row.positive}</b><span>${esc(positive)}</span><b>${row.negative}</b><span>${esc(negative)}</span></div>`
+    }).join('') : `<p class="empty-chart">${esc(t('Draw a doorway line to measure directional crossings.'))}</p>`;
+    $('queue-summary').innerHTML = `<div class="queue-values"><div><b>${d.areas.some(a=>a.kind==='queue')?d.queue.peak_people:'—'}</b><small>${esc(t('Longest observed line'))}</small></div><div><b>${sec(d.queue.median_complete_wait_seconds)}</b><small>${esc(t('Median entry to checkout'))}</small></div><div><b>${d.queue.abandoned??'—'}</b><small>${esc(t('Gave up waiting'))}</small></div></div><p class="field-note">${esc(t('{n} observed transitions, {m} with an observed waiting-area entry. Payment and actual service are not inferred.',{n:d.queue.observed_waits.length,m:d.queue.observed_waits.filter(w=>w.complete_entry).length}))}</p>`;
 }
 async function refreshWorkspace() {
     const data = await api('/api/ops/workspace');
@@ -409,13 +573,13 @@ async function refreshWorkspace() {
 }
 
 function fillContext() {
-    const v = ops.workspace?.recordings.find(v => v.id === state.video?.id),
+    const v = ops.workspace?.recordings.find(row => row.id === state.video?.id),
         context = v?.context ?? {};
     $('context-label').value = context.label ?? '';
     $('context-start').value = context.started_at_utc ? deviceInput(context.started_at_utc) : '';
-    $('context-shift').value = context.shift_label ?? '';
-    $('context-notes').value = context.notes ?? '';
-    $('context-message').textContent = context.started_at_utc ? 'Time basis: explicitly assigned by an operator.' : 'Undated footage is excluded from calendar reports.';
+    $('context-shift').value = t(context.shift_label ?? '');
+    $('context-notes').value = t(context.notes ?? '');
+    $('context-message').textContent = t(context.time_basis === 'simulated' ? 'Time basis: simulated.' : context.started_at_utc ? 'Time basis: explicitly assigned by an operator.' : 'Undated footage is excluded from calendar reports.');
 }
 
 function deviceInput(value) {
@@ -425,7 +589,7 @@ function deviceInput(value) {
 $('context-form').onsubmit = async event => {
     event.preventDefault();
     if (!state.video) {
-        toast('Select a recording first.', true);
+        toast(t('Select a recording first.'), true);
         return
     }
     try {
@@ -437,8 +601,9 @@ $('context-form').onsubmit = async event => {
         };
         await api('/api/ops/recordings/' + state.video.id, json('PUT', context));
         await refreshWorkspace();
-        $('context-message').textContent = 'Recording context saved. Calendar reports now use this explicitly assigned time.';
-        toast('Recording context saved.')
+        await loadStore();
+        $('context-message').textContent = t('Recording context saved. Calendar reports now use this explicitly assigned time.');
+        toast(t('Recording context saved.'))
     } catch (e) {
         $('context-message').textContent = e.message
     }
@@ -449,7 +614,7 @@ function fillQueueMappings() {
     for (const kind of ['queue', 'checkout']) {
         const select = $('active-' + kind),
             shapes = state.geometry.shapes.filter(s => s.kind === kind),
-            html = '<option value="">Not configured</option>' + shapes.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+            html = `<option value="">${esc(t('Not configured'))}</option>` + shapes.map(s => `<option value="${esc(s.id)}">${esc(t(s.name))}</option>`).join('');
         if (select.innerHTML !== html) select.innerHTML = html;
         select.value = state.geometry.active[kind] ?? '';
         select.disabled = !!(state.live || state.offline)
@@ -479,10 +644,10 @@ $('apply-tracking').onclick = task(() => {
         high_threshold: Number($('tracking-confidence').value),
         max_lost_ms: Number($('tracking-gap').value)
     };
-    if (profile.high_threshold < .15 || profile.high_threshold > .95 || profile.max_lost_ms < 200 || profile.max_lost_ms > 5000) throw Error('Use confidence 0.15–0.95 and lost buffer 200–5000 ms.');
+    if (profile.high_threshold < .15 || profile.high_threshold > .95 || profile.max_lost_ms < 200 || profile.max_lost_ms > 5000) throw Error(t('Use confidence 0.15–0.95 and lost buffer 200–5000 ms.'));
     localStorage.setItem('sentient.tracking-profile', JSON.stringify(profile));
-    $('tracking-profile-message').textContent = 'Profile saved. It applies to the next full-video or tracking-only run.';
-    toast('Tracking profile saved.')
+    $('tracking-profile-message').textContent = t('Profile saved. It applies to the next full-video or tracking-only run.');
+    toast(t('Tracking profile saved.'))
 });
 async function attachTracking(job) {
     const [paths, stats] = await Promise.all([api(`/api/tracking/jobs/${job.id}/paths`), api(`/api/shelves/jobs/${job.id}`)]);
@@ -502,8 +667,8 @@ async function attachTracking(job) {
     $('player').hidden = false;
     $('export').href = `/api/ops/runs/${encodeURIComponent(state.opsRunKey)}/insights`;
     $('export').hidden = false;
-    $('run-status').textContent = 'Person tracking complete';
-    notice('Person detection and tracking saved. Open Track explorer to investigate identities and routes.');
+    $('run-status').textContent = t('Person tracking complete');
+    notice(t('Person detection and tracking saved. Open Track explorer to investigate identities and routes.'));
     renderEvents();
     renderStats();
     await offlineFrame($('player').currentTime * 1000);
@@ -520,7 +685,9 @@ async function watchTracking(job) {
     try {
         let current = job;
         while (['queued', 'running', 'cancelling'].includes(current.status)) {
-            $('run-status').textContent = 'Person tracking · ' + Math.round(current.progress * 100) + '%';
+            $('run-status').textContent = t('Person tracking: {n}%', {
+                n: Math.round(current.progress * 100)
+            });
             $('progress').value = current.progress;
             await new Promise(r => setTimeout(r, 500));
             current = await api('/api/tracking/jobs/' + job.id);
@@ -528,9 +695,9 @@ async function watchTracking(job) {
         }
         if (current.status === 'completed') await attachTracking(current);
         else if (current.status === 'cancelled') {
-            notice('Tracking cancelled.');
-            $('run-status').textContent = 'Cancelled'
-        } else throw Error(current.error ?? 'Tracking failed');
+            notice(t('Tracking cancelled.'));
+            $('run-status').textContent = t('Cancelled')
+        } else throw Error(current.error ?? t('Tracking failed'));
     } finally {
         state.offline = null;
         state.trackingOnly = false;
@@ -543,7 +710,7 @@ async function watchTracking(job) {
     }
 }
 $('tracking-only').onclick = task(async () => {
-    if (state.dirty || state.tool) throw Error('Finish drawing and save geometry before analysis.');
+    if (state.dirty || state.tool) throw Error(t('Finish drawing and save geometry before analysis.'));
     await stopLive();
     const job = await api('/api/tracking/videos/' + state.video.id, json('POST', {
         geometry_id: state.geometryId,
@@ -577,7 +744,8 @@ function fillSettings() {
     $('setting-dwell').value = s.dwell_limit_s;
     $('setting-crowd').value = s.crowd_limit;
     $('setting-queue').value = s.queue_limit;
-    document.querySelector('.workspace-switch b').textContent = s.workspace_name
+    $('setting-item-value').value = s.avg_item_value ?? 0;
+    $('setting-currency').value = s.currency ?? 'KZT';
 }
 $('settings-form').onsubmit = async event => {
     event.preventDefault();
@@ -588,7 +756,9 @@ $('settings-form').onsubmit = async event => {
         shift_end: $('setting-shift-end').value,
         dwell_limit_s: Number($('setting-dwell').value),
         crowd_limit: Number($('setting-crowd').value),
-        queue_limit: Number($('setting-queue').value)
+        queue_limit: Number($('setting-queue').value),
+        avg_item_value: Number($('setting-item-value').value) || 0,
+        currency: $('setting-currency').value || 'KZT'
     };
     try {
         await api('/api/ops/settings', json('PUT', body));
@@ -596,8 +766,9 @@ $('settings-form').onsubmit = async event => {
         await refreshWorkspace();
         fillSettings();
         await refreshInsights(true);
-        $('settings-message').textContent = 'Settings saved. Signal rules were recalculated from the saved observations.';
-        toast('Workspace settings saved.')
+        await loadStore();
+        $('settings-message').textContent = t('Settings saved. Signal rules were recalculated from the saved observations.');
+        toast(t('Workspace settings saved.'))
     } catch (e) {
         $('settings-message').textContent = e.message
     }
@@ -606,13 +777,13 @@ async function refreshHealth() {
     const h = await api('/api/ops/health');
     ops.health = h;
     $('system-health').innerHTML = [
-        ['CPU usage', h.cpu_percent + '%', 'Measured process host'],
-        ['System memory', h.ram_used_gb + ' GB', h.ram_total_gb + ' GB installed'],
-        ['GPU', h.gpu ? h.gpu.utilization + '%' : 'Unavailable', h.gpu?.name ?? 'No NVIDIA telemetry'],
-        ['GPU memory', h.gpu ? (h.gpu.memory_used_mb / 1024).toFixed(1) + ' GB' : '—', h.gpu ? (h.gpu.memory_total_mb / 1024).toFixed(1) + ' GB installed' : 'CPU fallback may be available']
-    ].map(([l, v, n]) => `<article><small>${l}</small><b>${v}</b><p>${esc(n)}</p></article>`).join('');
+        statTile(t('CPU usage'), h.cpu_percent + '%'),
+        statTile(t('System memory'), `${h.ram_used_gb} / ${h.ram_total_gb} GB`),
+        statTile(t('GPU'), h.gpu ? h.gpu.utilization + '%' : t('Unavailable')),
+        statTile(t('GPU memory'), h.gpu ? `${(h.gpu.memory_used_mb/1024).toFixed(1)} / ${(h.gpu.memory_total_mb/1024).toFixed(1)} GB` : '—')
+    ].join('');
     const reviewed = ops.data ? ops.data.summary.accepted + ops.data.summary.rejected : 0;
-    $('model-readiness').innerHTML = `<div class="model-row"><b>Pickup model ${h.action_model.available?'available locally':'not configured'}</b><code>${esc(h.model_id??'No configured model')}</code><p>Score threshold ${h.pickup_policy?.threshold?.toFixed(2)??'unknown'}. Continuous store-footage precision is unmeasured.</p></div><div class="model-row"><b>RT-DETRv2 + time-aware local association</b><p>Live detector ${h.detector_cached?'cached':'loads on demand'}. Tracker uses motion and two-stage IoU association. It has no appearance embeddings or cross-camera identity.</p></div><div class="model-row"><b>Operator review coverage</b><p>${reviewed} reviewed signals in the selected run. ${ops.data?.summary.pending??0} pending. Review decisions are annotations, not an independent accuracy benchmark.</p></div><div class="model-row"><b>Report scheduler ${h.scheduler_running?'running':'stopped'}</b><p>Schedules execute while this app is running. Results stay in the local report library.</p></div>${h.limitations.map(l=>`<p class="field-note">${esc(l)}</p>`).join('')}`;
+    $('model-readiness').innerHTML = `<div class="model-row"><b>${esc(t(h.action_model.available?'Pickup model available locally':'Pickup model not configured'))}</b><code>${esc(h.model_id??t('No configured model'))}</code><p>${esc(t('Score threshold {n}. Continuous store-footage precision is unmeasured.',{n:h.pickup_policy?.threshold?.toFixed(2)??t('unknown')}))}</p></div><div class="model-row"><b>${esc(t('RT-DETRv2 and time-aware local association'))}</b><p>${esc(t(h.detector_cached?'Live detector cached.':'Live detector loads on demand.'))} ${esc(t('The tracker uses motion and two-stage IoU association. It has no appearance embeddings or cross-camera identity.'))}</p></div><div class="model-row"><b>${esc(t('Operator review coverage'))}</b><p>${esc(t('{n} reviewed signals in the selected run, {m} pending. Review decisions are annotations, not an independent accuracy benchmark.',{n:reviewed,m:ops.data?.summary.pending??0}))}</p></div><div class="model-row"><b>${esc(t(h.scheduler_running?'Report scheduler running':'Report scheduler stopped'))}</b><p>${esc(t('Schedules execute while this app is running. Results stay in the local report library.'))}</p></div>${h.limitations.map(row=>`<p class="field-note">${esc(t(row))}</p>`).join('')}`;
 }
 $('health-refresh').onclick = task(refreshHealth);
 
@@ -620,15 +791,17 @@ function fillReports() {
     const previously = new Set(Array.from(document.querySelectorAll('[data-report-source]:checked'), e => e.value));
     const initial = !$('report-sources').children.length;
     const recordings = ops.workspace.recordings.filter(v => (v.runs.length || state.demo.includes(v.id)) && (!$('report-store').value || v.store_id === $('report-store').value)).sort((a, b) => Number(state.demo.includes(b.id)) - Number(state.demo.includes(a.id)));
-    const store = $('report-store').value;
-    const storeHTML = '<option value="">All selected stores</option>' + [...new Set(ops.workspace.recordings.filter(v => v.runs.length).map(v => v.store_id))].sort().map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+    const store_ = $('report-store').value;
+    const storeHTML = `<option value="">${esc(t('All selected stores'))}</option>` + [...new Set(ops.workspace.recordings.filter(v => v.runs.length).map(v => v.store_id))].sort().map(s => `<option value="${esc(s)}">${esc(storeName({id:s,simulated:s==='sim-store'}))}</option>`).join('');
     if ($('report-store').innerHTML !== storeHTML) {
         $('report-store').innerHTML = storeHTML;
-        $('report-store').value = store
+        $('report-store').value = store_
     }
-    $('report-sources').innerHTML = recordings.map(v => `<label class="report-source"><input data-report-source type="checkbox" value="${v.id}" ${initial?state.demo.includes(v.id)||v.id===state.video?.id?'checked':'':previously.has(v.id)?'checked':''}><span>${esc(v.context.label||title({display_name:v.name}))}<small>${esc(v.camera_id)} · ${v.runs.length?'Analysis available':'No completed run'} · ${v.context.started_at_utc?new Date(v.context.started_at_utc).toLocaleString():'Undated'}</small></span></label>`).join('') || '<p class="field-note">Analyze a recording to add it to reporting.</p>';
-    $('report-zone-note').textContent = `Calendar timezone: ${ops.workspace.settings.timezone}. Undated footage appears only in selected-recording reports.`;
-    $('report-library').innerHTML = ops.workspace.reports.map(r => `<article class="report-file"><div class="eyebrow">${esc(r.scope)} REPORT</div><h3>${esc(r.title)}</h3><p>${new Date(r.created_at).toLocaleString()} · ${r.recordings} recordings</p><p>${r.summary.tracks} local track IDs · ${r.summary.pickups??'Unscored'} candidates${r.coverage_status==='no_matching_recordings'?' · No matching coverage':''}</p><div class="report-downloads">${['pdf','docx','csv','json'].map(f=>`<a href="/api/ops/reports/${r.id}/${f}" download>${f.toUpperCase()} ↗</a>`).join('')}</div></article>`).join('') || empty('Your report library is ready');
+    $('report-sources').innerHTML = recordings.map(v => `<label class="report-source"><input data-report-source type="checkbox" value="${v.id}" ${initial?state.demo.includes(v.id)||v.id===state.video?.id?'checked':'':previously.has(v.id)?'checked':''}><span>${esc(v.context.label||title({display_name:v.name}))}<small>${esc([v.camera_id,t(v.runs.length?'Analysis available':'No completed run'),v.context.started_at_utc?new Date(v.context.started_at_utc).toLocaleString(locale()):t('Undated')].join(', '))}</small></span></label>`).join('') || `<p class="field-note">${esc(t('Analyze a recording to add it to reporting.'))}</p>`;
+    $('report-zone-note').textContent = t('Calendar timezone: {zone}. Undated footage appears only in selected-recording reports.', {
+        zone: ops.workspace.settings.timezone
+    });
+    $('report-library').innerHTML = ops.workspace.reports.map(r => `<article class="report-file"><h3>${esc(r.title)}</h3><p>${esc(new Date(r.created_at).toLocaleString(locale()))}, ${esc(t('{n} recordings',{n:r.recordings}))}</p><p>${esc(t('{a} local track IDs, {b} candidates',{a:r.summary.tracks,b:r.summary.pickups??t('unscored')}))}${r.coverage_status==='no_matching_recordings'?esc(', '+t('no matching coverage')):''}</p><div class="report-downloads">${['pdf','docx','csv','json'].map(f=>`<a href="/api/ops/reports/${r.id}/${f}" download>${f.toUpperCase()}</a>`).join('')}</div></article>`).join('') || empty('Your report library is empty', 'Generate a report and it stays here.');
 }
 $('report-store').onchange = fillReports;
 $('report-select-all').onclick = () => document.querySelectorAll('[data-report-source]').forEach(e => e.checked = !!ops.workspace.recordings.find(v => v.id === e.value)?.runs.length);
@@ -671,7 +844,7 @@ function addDay(date, n) {
 
 function reportBody() {
     const ids = Array.from(document.querySelectorAll('[data-report-source]:checked'), e => e.value);
-    if (!ids.length) throw Error('Select at least one recording.');
+    if (!ids.length) throw Error(t('Select at least one recording.'));
     const scope = $('report-scope').value,
         s = ops.workspace.settings;
     const body = {
@@ -679,18 +852,19 @@ function reportBody() {
         scope,
         video_ids: ids,
         store_id: $('report-store').value || null,
-        notes: $('report-notes').value
+        notes: $('report-notes').value,
+        lang: currentLanguage
     };
-    if (!body.title) throw Error('Enter a report title.');
+    if (!body.title) throw Error(t('Enter a report title.'));
     if (scope === 'collection') return body;
     if (scope === 'custom') {
-        if (!$('report-start').value || !$('report-end').value) throw Error('Set report start and end.');
+        if (!$('report-start').value || !$('report-end').value) throw Error(t('Set report start and end.'));
         const [startDate, startTime] = $('report-start').value.split('T'), [endDate, endTime] = $('report-end').value.split('T');
         body.start = zonedInput(startDate, startTime, s.timezone);
         body.end = zonedInput(endDate, endTime, s.timezone)
     } else if (scope === 'month') {
         const month = $('report-month').value;
-        if (!month) throw Error('Select a month.');
+        if (!month) throw Error(t('Select a month.'));
         const start = month + '-01',
             d = new Date(start + 'T12:00:00Z');
         d.setUTCMonth(d.getUTCMonth() + 1);
@@ -698,11 +872,11 @@ function reportBody() {
         body.end = zonedInput(d.toISOString().slice(0, 10), '00:00', s.timezone)
     } else {
         const date = $('report-date').value;
-        if (!date) throw Error('Select a report date.');
+        if (!date) throw Error(t('Select a report date.'));
         body.start = zonedInput(date, scope === 'shift' ? s.shift_start : '00:00', s.timezone);
         body.end = zonedInput(scope === 'shift' && s.shift_end > s.shift_start ? date : addDay(date, 1), scope === 'shift' ? s.shift_end : '00:00', s.timezone)
     }
-    if (new Date(body.end) <= new Date(body.start)) throw Error('Report end must be after its start.');
+    if (new Date(body.end) <= new Date(body.start)) throw Error(t('Report end must be after its start.'));
     return body;
 }
 $('report-scope').onchange = () => {
@@ -714,25 +888,25 @@ $('report-scope').onchange = () => {
 
 function showReportPreview(report) {
     const s = report.summary;
-    $('report-preview-content').innerHTML = `<h3>${esc(report.title)}</h3><p class="preview-period">${report.scope==='collection'?'Selected recording collection':esc(report.period.start)+' → '+esc(report.period.end)}</p><div class="preview-metrics">${[['Recordings',report.recordings.length],['Observed tracks',s.tracks],['Pickup candidates',s.pickups],['Pending signals',s.pending]].map(([l,v])=>`<div><b>${v??'—'}</b><small>${l}</small></div>`).join('')}</div><p class="coverage-note">${sec(s.observed_seconds)} of analysed source footage. Peak ${s.peak_people} observed tracks in one view.</p>${report.warnings.map(w=>`<p class="coverage-note ${report.recordings.length?'':'warning'}">${esc(w)}</p>`).join('')}${report.excluded.length?`<p class="coverage-note warning">${report.excluded.length} excluded: ${esc([...new Set(report.excluded.map(e=>e.reason))].join('; '))}.</p>`:''}`;
+    $('report-preview-content').innerHTML = `<h3>${esc(report.title)}</h3><p class="preview-period">${esc(report.scope==='collection'?t('Selected recording collection'):report.period.start+' — '+report.period.end)}</p><div class="preview-metrics">${[['Recordings',report.recordings.length],['Observed tracks',s.tracks],['Pickup candidates',s.pickups],['Pending signals',s.pending]].map(([l,v])=>`<div><b>${v??'—'}</b><small>${esc(t(l))}</small></div>`).join('')}</div><p class="coverage-note">${esc(t('{time} of analysed source footage. Peak {n} observed tracks in one view.',{time:sec(s.observed_seconds),n:s.peak_people}))}</p>${report.warnings.map(w=>`<p class="coverage-note ${report.recordings.length?'':'warning'}">${esc(t(w))}</p>`).join('')}${report.excluded.length?`<p class="coverage-note warning">${esc(t('{n} excluded: {why}.',{n:report.excluded.length,why:[...new Set(report.excluded.map(e=>t(e.reason)))].join('; ')}))}</p>`:''}`;
 }
 async function doReport(generate) {
     $('report-preview').disabled = $('report-generate').disabled = true;
-    $('report-message').textContent = generate ? 'Generating PDF, editable Word, CSV and JSON…' : 'Calculating coverage and building preview…';
+    $('report-message').textContent = t(generate ? 'Generating PDF, editable Word, CSV and JSON…' : 'Calculating coverage and building preview…');
     try {
         const body = reportBody();
         const preview = await api('/api/ops/reports/preview', json('POST', body));
         showReportPreview(preview);
         if (generate) {
-            const report = await api('/api/ops/reports', json('POST', body));
+            await api('/api/ops/reports', json('POST', body));
             await refreshWorkspace();
-            $('report-message').textContent = 'Report saved. All four formats are ready in the report library.';
-            toast('Report generated and saved.');
+            $('report-message').textContent = t('Report saved. All four formats are ready in the report library.');
+            toast(t('Report generated and saved.'));
             $('report-library').scrollIntoView({
                 behavior: 'smooth',
                 block: 'center'
             })
-        } else $('report-message').textContent = 'Preview ready. Generate documents to save an immutable snapshot.'
+        } else $('report-message').textContent = t('Preview ready. Generate documents to save a frozen snapshot.')
     } catch (e) {
         $('report-message').textContent = e.message;
         toast(e.message, true)
@@ -748,13 +922,13 @@ $('report-form').onsubmit = e => {
 $('refresh-reports').onclick = task(refreshWorkspace);
 
 function fillSchedules() {
-    $('schedule-list').innerHTML = ops.workspace.schedules.map(s => `<div class="schedule-row"><div><b>${esc(s.name)}</b><p>${esc(s.cadence)} · next ${new Date(s.next_due).toLocaleString(undefined,{timeZone:s.timezone})} (${esc(s.timezone)})${s.last_error?' · Last attempt: '+esc(s.last_error):''}</p></div><button class="danger" data-delete-schedule="${s.id}">Remove</button></div>`).join('') || '<p class="field-note">No schedules yet. Uses the shift times and timezone in System & models.</p>';
+    $('schedule-list').innerHTML = ops.workspace.schedules.map(s => `<div class="schedule-row"><div><b>${esc(s.name)}</b><p>${esc(t({shift:'End of shift',daily:'Daily at midnight',monthly:'Month end'}[s.cadence]))}, ${esc(t('next {when}',{when:new Date(s.next_due).toLocaleString(locale(),{timeZone:s.timezone})}))} (${esc(s.timezone)})${s.last_error?esc('. '+t('Last attempt: {error}',{error:s.last_error})):''}</p></div><button class="danger" data-delete-schedule="${s.id}">${esc(t('Remove'))}</button></div>`).join('') || `<p class="field-note">${esc(t('No schedules yet. Uses the shift times and timezone in System & models.'))}</p>`;
     document.querySelectorAll('[data-delete-schedule]').forEach(b => b.onclick = task(async () => {
         await api('/api/ops/schedules/' + b.dataset.deleteSchedule, {
             method: 'DELETE'
         });
         await refreshWorkspace();
-        toast('Report schedule removed.')
+        toast(t('Report schedule removed.'))
     }));
 }
 $('schedule-form').onsubmit = async event => {
@@ -773,7 +947,7 @@ $('schedule-form').onsubmit = async event => {
         }));
         await refreshWorkspace();
         $('schedule-name').value = '';
-        toast('Report schedule saved. It will run while the app is running.')
+        toast(t('Report schedule saved. It will run while the app is running.'))
     } catch (e) {
         toast(e.message, true)
     } finally {
@@ -789,9 +963,9 @@ $('command-open').onclick = () => {
 
 function renderCommands() {
     const q = $('command-search').value.toLowerCase().trim();
-    const views = Object.entries(viewInfo).filter(([key, v]) => v[0].toLowerCase().includes(q)).map(([key, v]) => `<button data-command-view="${key}"><span>${v[0]}</span><small>Workspace view ↗</small></button>`);
-    const videos = state.videos.filter(v => (title(v) + ' ' + v.camera_id).toLowerCase().includes(q)).slice(0, 8).map(v => `<button data-command-video="${v.id}"><span>${esc(title(v))}</span><small>Recording ↗</small></button>`);
-    $('command-results').innerHTML = [...views, ...videos].join('') || '<p class="field-note">No matching views or recordings.</p>';
+    const views = Object.entries(viewInfo).filter(([, v]) => t(v[0]).toLowerCase().includes(q)).map(([key, v]) => `<button data-command-view="${key}"><span>${esc(t(v[0]))}</span><small>${esc(t('View'))}</small></button>`);
+    const videos = state.videos.filter(v => (title(v) + ' ' + v.camera_id).toLowerCase().includes(q)).slice(0, 8).map(v => `<button data-command-video="${v.id}"><span>${esc(title(v))}</span><small>${esc(t('Recording'))}</small></button>`);
+    $('command-results').innerHTML = [...views, ...videos].join('') || `<p class="field-note">${esc(t('No matching views or recordings.'))}</p>`;
     document.querySelectorAll('[data-command-view]').forEach(b => b.onclick = () => {
         $('command-dialog').close();
         navigate(b.dataset.commandView)
@@ -806,7 +980,7 @@ $('command-search').oninput = renderCommands;
 $('command-search').onkeydown = e => {
     if (e.key === 'Enter') {
         e.preventDefault();
-        $('command-results button')?.click()
+        document.querySelector('#command-results button')?.click()
     }
 };
 document.addEventListener('keydown', e => {
@@ -814,9 +988,41 @@ document.addEventListener('keydown', e => {
         e.preventDefault();
         $('command-open').click()
     }
-    if (e.key === 'Escape' && state.focusTrack && !document.querySelector('dialog[open]')) clearFocus()
+    if (e.key === 'Escape' && state.focusTrack && !document.querySelector('dialog[open]')) clearFocus();
+    // Number keys move between the main views, which helps during a live demo.
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName ?? '') || document.querySelector('dialog[open]');
+    if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (/^[1-6]$/.test(e.key)) navigate(['store', 'overview', 'analytics', 'incidents', 'tracking', 'reports'][Number(e.key) - 1]);
+    if (!['overview', 'tracking'].includes(ops.view) || !state.video || state.live || document.activeElement?.tagName === 'BUTTON') return;
+    if (e.code === 'Space') {
+        e.preventDefault();
+        $('play-toggle').click()
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') seekRecording(Math.max(0, state.ms + (e.key === 'ArrowLeft' ? -1000 : 1000))).catch(error => toast(error.message, true));
 });
+
+function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    $('theme-icon').setAttribute('href', theme === 'dark' ? '#i-sun' : '#i-moon');
+    $('theme-toggle').setAttribute('aria-label', t(theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'));
+    $('theme-toggle').title = $('theme-toggle').getAttribute('aria-label');
+    document.querySelector('meta[name=theme-color]').content = theme === 'dark' ? '#0c1424' : '#ffffff';
+    try {
+        localStorage.setItem('sentient.theme', theme)
+    } catch {}
+}
+$('theme-toggle').onclick = () => {
+    applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+};
+$('lang-toggle').onclick = () => setLanguage(currentLanguage === 'ru' ? 'en' : 'ru');
+
 async function bootOperations() {
+    const params = new URLSearchParams(location.search),
+        requested = params.get('view'),
+        savedRun = params.get('video');
+    applyTheme(document.documentElement.dataset.theme || 'light');
+    $('lang-toggle').textContent = currentLanguage === 'ru' ? 'EN' : 'RU';
+    $('report-title').value = t($('report-title').value);
     await bootWorkspace();
     await refreshWorkspace();
     ops.booted = true;
@@ -825,15 +1031,35 @@ async function bootOperations() {
     $('report-month').value = date.slice(0, 7);
     $('report-start').value = date + 'T09:00';
     $('report-end').value = date + 'T18:00';
-    const view = new URLSearchParams(location.search).get('view');
-    if (view && viewInfo[view]) navigate(view);
+    store.demo = await api('/api/ops/demo-store');
+    await loadStore({
+        print: true
+    });
+    if (store.demo.status === 'building') startDemoWatch();
+    navigate(requested && viewInfo[requested] ? requested : savedRun ? 'overview' : 'store');
     syncOperations();
 }
-bootOperations().catch(e => {notice(e.message,true);toast('Operations workspace: '+e.message,true)});
+
+function startDemoWatch() {
+    clearInterval(store.demoTimer);
+    store.demoTimer = setInterval(task(async () => {
+        store.demo = await api('/api/ops/demo-store');
+        if (store.demo.status === 'ready') location.reload();
+        else renderOnboarding();
+    }), 800);
+}
+bootOperations().catch(e => {
+    notice(e.message, true);
+    toast(t('Workspace failed to start: {error}', {
+        error: e.message
+    }), true)
+});
 
 function renderFeedReviews() {
     const data = ops.key === currentRun() ? ops.data : null;
-    if ($('feed-review-state')) $('feed-review-state').textContent = data ? `${data.summary.pending} pending signals` : 'Review required';
+    if ($('feed-review-state')) $('feed-review-state').textContent = data ? t('{n} pending signals', {
+        n: data.summary.pending
+    }) : t('Review required');
     for (const button of document.querySelectorAll('[data-pickup]')) {
         const event = state.events[Number(button.dataset.pickup)],
             review = data?.incidents.find(e => e.id === event?.id)?.review;
@@ -841,10 +1067,10 @@ function renderFeedReviews() {
         if (review && review.status !== 'pending') {
             if (!badge) {
                 badge = document.createElement('span');
-                button.querySelector('.event-body').appendChild(badge);
+                button.appendChild(badge);
             }
-            badge.className = 'feed-review-status review-badge ' + review.status;
-            badge.textContent = review.status === 'rejected' ? 'Dismissed by operator' : 'Accepted by operator';
+            badge.className = 'feed-review-status ' + review.status;
+            badge.textContent = t(review.status === 'rejected' ? 'Dismissed by operator' : 'Accepted by operator');
         } else badge?.remove();
     }
 }
@@ -864,7 +1090,7 @@ async function restoreLinkedRun(key, videoId, generation, jobs, histories) {
     const job = jobs.find(j => 'offline:' + j.id === key && j.status === 'completed');
     if (job) {
         await showOffline(job, generation);
-        $('run-status').textContent = 'Saved full-video results';
+        $('run-status').textContent = t('Saved full-video results');
         renderHistory();
         return true;
     }
@@ -876,7 +1102,7 @@ async function restoreLinkedRun(key, videoId, generation, jobs, histories) {
                 return true;
             }
         } catch (error) {
-            notice('The linked tracking run is unavailable; showing another saved run.')
+            notice(t('The linked tracking run is unavailable; showing another saved run.'))
         }
     }
     return false;
@@ -889,19 +1115,19 @@ function fillRunSelector() {
         key,
         kind: key.split(':')[0]
     });
-    const html = '<option value="">Choose a completed run…</option>' + rows.map(r => `<option value="${esc(r.key)}">${r.kind==='offline'?'Full analysis':r.kind==='track'?'Person tracking':'Live recording run'}${r.created_at?' · '+new Date(r.created_at).toLocaleString():''}</option>`).join('');
+    const html = `<option value="">${esc(t('Choose a completed run…'))}</option>` + rows.map(r => `<option value="${esc(r.key)}">${esc(t(r.kind==='offline'?'Full analysis':r.kind==='track'?'Person tracking':'Live recording run'))}${r.created_at?', '+esc(new Date(r.created_at).toLocaleString(locale())):''}</option>`).join('');
     if ($('analysis-run').innerHTML !== html) $('analysis-run').innerHTML = html;
     $('analysis-run').value = key ?? '';
 }
 $('analysis-run').onchange = task(async () => {
     const key = $('analysis-run').value;
     if (!key) return;
-    if (state.dirty || state.tool) throw Error('Save or discard geometry edits before changing runs.');
-    if (state.offline) throw Error('Wait for analysis to finish or cancel it.');
+    if (state.dirty || state.tool) throw Error(t('Save or discard geometry edits before changing runs.'));
+    if (state.offline) throw Error(t('Wait for analysis to finish or cancel it.'));
     await stopLive();
     if (key.startsWith('live:')) await showSavedLive(key.slice(5));
     else if (key.startsWith('offline:')) {
         await showOffline(await api('/api/action-analysis/jobs/' + key.slice(8)));
-        $('run-status').textContent = 'Saved full-video results';
+        $('run-status').textContent = t('Saved full-video results');
     } else if (key.startsWith('track:')) await attachTracking(await api('/api/tracking/jobs/' + key.slice(6)));
 });

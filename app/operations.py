@@ -1,6 +1,6 @@
 """Persistent operations, track investigation and report scheduling for the existing app."""
 
-from collections import OrderedDict, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Event, RLock, Thread
@@ -107,6 +107,7 @@ class ReportRequest(BaseModel):
     video_ids: list[str] = Field(default_factory=list, max_length=500)
     store_id: str | None = None
     notes: str = Field(default="", max_length=5000)
+    lang: str = Field(default="en", pattern="^(en|ru)$")
 
 
 class ScheduleRequest(BaseModel):
@@ -513,6 +514,8 @@ class Operations:
             observed_seconds=0.0,
         )
         daily = defaultdict(lambda: dict(tracks=0, pickups=0, recordings=0))
+        checks = Counter()
+        doors = dict(entries=0, exits=0, configured=False)
         area_rows = []
         incidents = []
         sources = []
@@ -602,6 +605,11 @@ class Operations:
                     totals[k] = max(totals[k], summary[k])
                 elif summary[k] is not None:
                     totals[k] += summary[k]
+            checks.update(data["crosscheck"]["totals"])
+            if data["footfall"]["configured"]:
+                doors["configured"] = True
+                doors["entries"] += data["footfall"]["entries"]
+                doors["exits"] += data["footfall"]["exits"]
             for a in data["areas"]:
                 area_rows.append(a | dict(video_id=video_id, camera_id=v["camera_id"]))
             for e in data["incidents"]:
@@ -686,6 +694,8 @@ class Operations:
                     merged.append([a, b])
             coverage += sum(b - a for a, b in merged)
         totals["observed_seconds"] = round(totals["observed_seconds"], 2)
+        totals["entries"] = doors["entries"] if doors["configured"] else None
+        totals["exits"] = doors["exits"] if doors["configured"] else None
         if items and not any(r["summary"]["pickup_scoring_available"] for r in items):
             totals["pickups"] = None
             for day in daily.values():
@@ -717,6 +727,8 @@ class Operations:
             )
         return dict(
             title=request["title"],
+            lang=request.get("lang", "en"),
+            crosscheck=dict(checks),
             scope=request["scope"],
             period=dict(
                 start=request.get("start"),
@@ -914,6 +926,18 @@ class Operations:
             if len(own) != len(current):
                 data["heat"] = period_payload(own, [], settings)["heat"]
             camera["shapes"] = load_geometry(self.catalog, camera["video_id"])["geometry"]["shapes"]
+            camera["frame_url"] = (
+                "/api/ops/demo-store/floor.png"
+                if store["simulated"]
+                else f"/api/videos/{camera['video_id']}/frame/0"
+            )
+        recent = [
+            d
+            for d in days
+            if mode == "calendar"
+            and (datetime.fromisoformat(last) - timedelta(days=6)).date().isoformat() <= d["date"] <= last
+        ]
+        data["week_grid"] = period_payload(recent, [], settings)["grid"] if recent else []
         data.update(
             store=store,
             stores=stores,
@@ -1226,6 +1250,27 @@ def router(ops):
     ):
         return ops.overview(store_id, start, end, camera_id)
 
+    @r.get("/z-report.pdf")
+    def z_report(
+        store_id: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
+        lang: str = Query("en", pattern="^(en|ru)$"),
+    ):
+        from app.report_documents import build_z_report
+
+        data = ops.overview(store_id, start, end)
+        if data["mode"] == "empty":
+            raise KeyError("No store to report on")
+        buffer = io.BytesIO()
+        build_z_report(data, lang, buffer)
+        name = "sentient-z-report-" + (data.get("end") or "recordings") + ".pdf"
+        return Response(
+            buffer.getvalue(),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{name}"'},
+        )
+
     @r.get("/demo-store")
     def demo_state():
         return ops.demo_state()
@@ -1233,6 +1278,13 @@ def router(ops):
     @r.post("/demo-store")
     def demo_build():
         return ops.build_demo()
+
+    @r.get("/demo-store/floor.png")
+    def demo_floor():
+        path = ops.catalog.root / "simulation/floor.png"
+        if not path.is_file():
+            raise KeyError("The demo store has not been built")
+        return FileResponse(path, media_type="image/png")
 
     @r.get("/runs")
     def runs(video_id: str | None = None):
@@ -1274,7 +1326,10 @@ def router(ops):
 
     @r.get("/runs/{key}/tracks/{identity}/evidence")
     def evidence_image(
-        key: str, identity: str, media_ms: float = Query(0, allow_inf_nan=False)
+        key: str,
+        identity: str,
+        media_ms: float = Query(0, allow_inf_nan=False),
+        crop: bool = False,
     ):
         from PIL import Image, ImageDraw
         from app.p1.media import frame_png
@@ -1295,10 +1350,19 @@ def router(ops):
         png, _ = frame_png(ops.catalog, video, row["frame_index"])
         image = Image.open(io.BytesIO(png)).convert("RGB")
         draw = ImageDraw.Draw(image)
-        draw.rectangle(track["box"], outline="#C5F970", width=3)
-        caption = f"{identity} | {row['media_ms'] / 1000:.2f}s | observed frame {row['frame_index']}"
-        draw.rectangle((0, 0, image.width, 28), fill="#111A16")
-        draw.text((10, 8), caption, fill="white")
+        draw.rectangle(track["box"], outline="#FFD21F", width=3)
+        if crop:
+            # Thumbnails show the person, not a whole store at 116 pixels wide.
+            x1, y1, x2, y2 = track["box"]
+            side = max(x2 - x1, y2 - y1) * 2.4
+            width = side * 16 / 9
+            left = min(max(0, (x1 + x2) / 2 - width / 2), max(0, image.width - width))
+            top = min(max(0, (y1 + y2) / 2 - side / 2), max(0, image.height - side))
+            image = image.crop((int(left), int(top), int(left + width), int(top + side)))
+        else:
+            caption = f"{identity} | {row['media_ms'] / 1000:.2f}s | observed frame {row['frame_index']}"
+            draw.rectangle((0, 0, image.width, 28), fill="#0C1424")
+            draw.text((10, 8), caption, fill="white")
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")
         return Response(

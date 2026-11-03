@@ -236,12 +236,14 @@ def funnel(tracks, visits, pickups, crossings, geometry, available=True):
     has_doors = any(s.get("positive_means") in ("enter", "leave") for s in shapes.values())
     has_shelves = any(s["kind"] == "shelf" for s in geometry["shapes"])
     has_checkout = any(s["kind"] == "checkout" for s in geometry["shapes"])
+    # Counted over tracks and nested, so a step can never exceed the one before it.
+    # Pickups stay outside the funnel: a model miss is not a shopper who took nothing.
     return [
         dict(key="entered", count=len(entered) if has_doors else None),
         dict(key="observed", count=len(known)),
-        dict(key="engaged", count=len(engaged) if has_shelves else None),
+        dict(key="engaged", count=len(engaged & known) if has_shelves else None),
+        dict(key="checkout", count=len(checkout & engaged & known) if has_checkout and has_shelves else None),
         dict(key="picked", count=len(picked) if available else None),
-        dict(key="checkout", count=len(checkout) if has_checkout else None),
     ]
 
 

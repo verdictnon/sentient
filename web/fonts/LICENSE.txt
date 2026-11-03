@@ -1,0 +1,8 @@
+Onest
+Copyright 2021 The Onest Project Authors (https://github.com/simpals/onest)
+
+PT Mono
+Copyright (c) 2010 ParaType Inc., ParaType Ltd. All rights reserved.
+
+Both typefaces are licensed under the SIL Open Font License, Version 1.1.
+The full license text is available at https://openfontlicense.org/open-font-license-official-text/

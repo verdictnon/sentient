@@ -588,31 +588,30 @@ def open_seconds():
     return (CLOSE_HOUR - OPEN_HOUR) * 3600
 
 
-def scripted_no_checkout(at):
-    """A shopper who picks up a drink and walks out through the entrance."""
+def scripted_no_checkout(at, zone="shelf-drinks", point=(900.0, 96.0), colour=(196, 64, 52)):
+    """A shopper who picks something up and walks out through the entrance."""
 
     def build(rng, key):
-        shopper = Shopper(key, at, 74, (6, -4), (196, 64, 52))
+        shopper = Shopper(key, at, 74, (6, -4), colour)
         shopper.scenario = "no_checkout"
         shopper.points = [(at, 150.0, 716.0)]
         shopper.go(150, 640, speed=DOOR_SPEED)
         shopper.go(184, 500)
-        point = (900.0, 96.0)
         arrive = shopper.walk(point)
-        shopper.points.append((arrive + 16, *point))
-        shopper.picks.append(Pick(arrive + 11, "shelf-drinks", True, True))
+        shopper.points.append((arrive + 12, *point))
+        shopper.picks.append(Pick(arrive + 8, zone, True, True))
         shopper.items = 1
         return shopper
 
     return build
 
 
-def scripted_buyer(at, zone, point, colour):
-    """A shopper already at a shelf who pays inside the clip."""
+def scripted_buyer(at, zone, point, colour, splits=False):
+    """A shopper who pays inside the clip, or whose track splits before the till."""
 
     def build(rng, key):
         shopper = Shopper(key, at, 74, (-6, 4), colour)
-        shopper.points = [(at - 20, 170.0, 716.0)]
+        shopper.points = [(at, 170.0, 716.0)]
         shopper.go(170, 640, speed=DOOR_SPEED)
         shopper.go(172, 500)
         arrive = shopper.walk(point)
@@ -620,6 +619,8 @@ def scripted_buyer(at, zone, point, colour):
         shopper.picks.append(Pick(arrive + 5, zone, True, True))
         shopper.items = 1
         shopper.priority = True
+        if splits:
+            shopper.switch_at = arrive + 13
         return shopper
 
     return build
@@ -640,10 +641,12 @@ def clip_scripts():
     """Guarantee the moments the demo story needs inside the clip window."""
     start, _ = clip_window()
     return (
-        scripted_no_checkout(start + 8),
-        scripted_buyer(start, "shelf-promo", (300.0, 526.0), (43, 88, 168)),
-        scripted_buyer(start + 4, "shelf-snacks", (440.0, 420.0), (60, 138, 92)),
-        scripted_buyer(start + 12, "shelf-grocery", (560.0, 430.0), (222, 152, 44)),
+        scripted_no_checkout(start + 6),
+        scripted_no_checkout(start + 26, "shelf-sweets", (780.0, 400.0), (110, 80, 160)),
+        scripted_buyer(start + 3, "shelf-promo", (300.0, 526.0), (43, 88, 168)),
+        scripted_buyer(start + 11, "shelf-snacks", (440.0, 420.0), (60, 138, 92)),
+        scripted_buyer(start + 30, "shelf-grocery", (560.0, 430.0), (222, 152, 44)),
+        scripted_buyer(start + 44, "shelf-promo", (330.0, 530.0), (46, 142, 160), splits=True),
     )
 
 
@@ -681,7 +684,7 @@ def render_clip(path, shoppers, progress=None):
     label = ImageFont.truetype(str(fonts / "DejaVuSans-Bold.ttf"), 13)
     stamp = ImageFont.truetype(str(fonts / "DejaVuSans-Bold.ttf"), 15)
     start, end = clip_window()
-    background = draw_store(ImageFont.truetype(str(fonts / "DejaVuSans-Bold.ttf"), 12))
+    background = draw_store()
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     rate = Fraction(CLIP_FPS)
@@ -693,7 +696,7 @@ def render_clip(path, shoppers, progress=None):
         stream.codec_context.time_base = Fraction(1, 1000)
         stream.codec_context.max_b_frames = 0
         stream.codec_context.gop_size = 30
-        stream.options = dict(crf="23", preset="veryfast", tune="animation")
+        stream.options = dict(crf="23", preset="veryfast")
         total = CLIP_SECONDS * CLIP_FPS
         active = [s for s in shoppers if s.leave >= start and s.enter <= end]
         active.sort(key=lambda s: s.enter)
@@ -710,9 +713,9 @@ def render_clip(path, shoppers, progress=None):
             for y, x, shopper in sorted(visible, key=lambda item: item[0]):
                 draw_person(draw, x, y, shopper.colour, seconds + shopper.key)
             clock = (datetime(2000, 1, 1, OPEN_HOUR) + timedelta(seconds=seconds)).strftime("%H:%M:%S")
-            draw.rectangle((12, 690, 356, 712), fill=(13, 22, 40, 214))
-            draw.text((20, 693), f"CAM-01   {clock}   SIMULATED", font=stamp, fill=(255, 208, 30, 255))
-            draw.text((1000, 8), "SIMULATION, NOT REAL FOOTAGE", font=label, fill=(120, 130, 146, 255))
+            draw.rectangle((340, 4, 940, 22), fill=(13, 22, 40, 255))
+            draw.text((352, 5), f"CAM-01   {clock}   SIMULATED", font=stamp, fill=(255, 208, 30, 255))
+            draw.text((690, 6), "SIMULATION, NOT REAL FOOTAGE", font=label, fill=(160, 172, 194, 255))
             frame = av.VideoFrame.from_image(image.convert("RGB"))
             frame.pts = int(index * 1000 / CLIP_FPS)
             frame.time_base = Fraction(1, 1000)
@@ -725,55 +728,50 @@ def render_clip(path, shoppers, progress=None):
     return path
 
 
-def draw_store(font):
+def draw_store():
     from PIL import Image, ImageDraw
 
-    image = Image.new("RGBA", (WIDTH, HEIGHT), "#e9ecef")
+    image = Image.new("RGBA", (WIDTH, HEIGHT), "#232d41")
     draw = ImageDraw.Draw(image, "RGBA")
     for x in range(0, WIDTH, 40):
-        draw.line((x, 0, x, HEIGHT), fill=(214, 219, 225, 255))
+        draw.line((x, 0, x, HEIGHT), fill=(44, 55, 77, 255))
     for y in range(0, HEIGHT, 40):
-        draw.line((0, y, WIDTH, y), fill=(214, 219, 225, 255))
-    draw.rectangle((0, 0, WIDTH, 24), fill="#39465c")
-    draw.rectangle((0, 0, 20, HEIGHT), fill="#39465c")
-    draw.rectangle((WIDTH - 20, 0, WIDTH, HEIGHT), fill="#39465c")
-    draw.rectangle((0, HEIGHT - 8, WIDTH, HEIGHT), fill="#39465c")
+        draw.line((0, y, WIDTH, y), fill=(44, 55, 77, 255))
+    wall = "#121b2d"
+    draw.rectangle((0, 0, WIDTH, 24), fill=wall)
+    draw.rectangle((0, 0, 20, HEIGHT), fill=wall)
+    draw.rectangle((WIDTH - 20, 0, WIDTH, HEIGHT), fill=wall)
+    draw.rectangle((0, HEIGHT - 8, WIDTH, HEIGHT), fill=wall)
     for a, b in ((96, 214), (1036, 1154)):
-        draw.rectangle((a, HEIGHT - 12, b, HEIGHT), fill="#f4f6f8")
+        draw.rectangle((a, HEIGHT - 10, b, HEIGHT), fill="#8fa3c4")
     rng = random.Random("sentient-simulated-store/fixtures")
     for name, box, colour in FIXTURES:
         x1, y1, x2, y2 = box
-        draw.rectangle((x1 + 3, y1 + 4, x2 + 3, y2 + 4), fill=(32, 44, 66, 40))
-        draw.rectangle(box, fill="#f7f8fa", outline="#5b6a80", width=2)
+        draw.rectangle((x1 + 3, y1 + 5, x2 + 3, y2 + 5), fill=(8, 13, 24, 120))
+        draw.rectangle(box, fill="#3a475f", outline="#5a6a86", width=2)
         tone = tuple(int(colour[i : i + 2], 16) for i in (1, 3, 5))
         horizontal = (x2 - x1) > (y2 - y1)
         cursor = (x1 + 4) if horizontal else (y1 + 4)
         limit = (x2 - 4) if horizontal else (y2 - 4)
         while cursor < limit:
             size = rng.randint(7, 13)
-            shade = rng.randint(-26, 26)
+            shade = rng.randint(-34, 12)
             fill = tuple(max(0, min(255, c + shade)) for c in tone)
             if horizontal:
                 draw.rectangle((cursor, y1 + 5, min(cursor + size, limit), y2 - 5), fill=fill)
             else:
                 draw.rectangle((x1 + 5, cursor, x2 - 5, min(cursor + size, limit)), fill=fill)
             cursor += size + 2
-    draw.rounded_rectangle((640, 604, 780, 622), 4, fill="#2f3b52")
-    draw.rounded_rectangle((640, 536, 780, 554), 4, fill="#2f3b52")
-    draw.ellipse((788, 600, 812, 624), fill="#d9534a")
-    draw.ellipse((788, 532, 812, 556), fill="#d9534a")
-    for name, box, _ in FIXTURES:
-        x1, y1, x2, y2 = box
-        width = draw.textlength(name, font=font)
-        if (x2 - x1) > (y2 - y1) * 1.2:
-            cx = (x1 + x2) / 2
-            draw.rectangle((cx - width / 2 - 5, (y1 + y2) / 2 - 9, cx + width / 2 + 5, (y1 + y2) / 2 + 9), fill=(255, 255, 255, 236))
-            draw.text((cx - width / 2, (y1 + y2) / 2 - 7), name, font=font, fill="#1a2740")
-    draw.text((104, 640), "ENTRANCE", font=font, fill="#5b6a80")
-    draw.text((1062, 640), "EXIT", font=font, fill="#5b6a80")
-    draw.text((664, 586), "TILL 1", font=font, fill="#5b6a80")
-    draw.text((664, 518), "TILL 2", font=font, fill="#5b6a80")
+    draw.rounded_rectangle((640, 604, 780, 622), 4, fill="#5a6a86")
+    draw.rounded_rectangle((640, 536, 780, 554), 4, fill="#5a6a86")
+    draw.ellipse((788, 600, 812, 624), fill="#e0654f")
+    draw.ellipse((788, 532, 812, 556), fill="#e0654f")
     return image
+
+
+def save_floor(path):
+    """An empty floor for the store map, so people in one frame do not mix with heat."""
+    draw_store().convert("RGB").save(path)
 
 
 def draw_person(draw, x, y, colour, phase):

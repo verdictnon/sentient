@@ -98,6 +98,7 @@ def seed_store(ops, days=14, today=None, progress=None):
     folder.mkdir(exist_ok=True)
     report("video", 0.64)
     path = sim.render_clip(folder / "overhead-camera-01.mp4", shoppers, lambda f: report("video", 0.64 + 0.32 * f))
+    sim.save_floor(folder / "floor.png")
     report("run", 0.96)
     video = register(
         catalog,

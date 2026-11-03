@@ -1,76 +1,170 @@
 """Generate durable management reports from an immutable, measured report snapshot."""
 
 from pathlib import Path
+import textwrap
 from xml.sax.saxutils import escape
 
+RU = {
+    "Unavailable": "Нет данных",
+    "Selected recording collection": "Выбранные записи",
+    "Recording and camera": "Запись и камера",
+    "Tracks": "Треки",
+    "Pickups": "Подборы",
+    "Observed time": "Время наблюдения",
+    "Area and camera": "Зона и камера",
+    "Visits": "Визиты",
+    "Observed dwell": "Время в зоне",
+    "Signal and source time": "Сигнал и время в записи",
+    "Camera": "Камера",
+    "Review": "Проверка",
+    "Operator notes": "Заметки оператора",
+    "No notes": "Без заметок",
+    "Recording date": "Дата записи",
+    "Track IDs present": "Треки",
+    "Pickup candidates": "Подборы",
+    "Recordings": "Записи",
+    "Operator summary": "Заметки управляющего",
+    "Recording coverage": "Охват записей",
+    "Area performance": "Показатели зон",
+    "Activity by recording date": "Активность по датам",
+    "Signals and operator review": "Сигналы и проверка",
+    "Pickups against the till": "Сверка подборов с кассой",
+    "Outcome": "Итог",
+    "Count": "Количество",
+    "Left without reaching a till": "Ушёл мимо кассы",
+    "Track lost before a till": "Трек оборвался до кассы",
+    "Still in view when the recording ended": "Ещё в кадре в конце записи",
+    "Reached a till": "Дошёл до кассы",
+    "No checkout on this camera": "Кассы нет в кадре",
+    "Coverage and interpretation": "Охват и интерпретация",
+    "Reproducibility": "Воспроизводимость",
+    "No measured results available for this section.": "Для этого раздела нет измеренных результатов.",
+    "pending": "ждёт",
+    "accepted": "принято",
+    "rejected": "отклонено",
+    "Pickup candidate": "Подбор товара",
+    "Track counts are summed camera-local IDs, not deduplicated customers.": "Треки это сумма идентификаторов внутри камер, а не уникальные покупатели.",
+    "Pickup candidates require review and do not establish purchases, payment or theft.": "Подборы требуют проверки и не подтверждают покупку, оплату или кражу.",
+    "One completed run per recording is used; area metrics use the specified saved geometry.": "Для каждой записи берётся один завершённый анализ и указанная разметка.",
+    "Collection report: footage is selected explicitly and is not attributed to a calendar shift or month.": "Отчёт по выбранным записям: они не привязаны к смене или месяцу.",
+    "Period selection uses operator-assigned recording times; samples outside the selected interval are excluded.": "Период считается по времени, заданному оператором. Данные вне периода исключены.",
+    "No analysed recordings match this scope. This is an empty coverage report, not evidence of zero store activity.": "За этот период нет проанализированных записей. Это отсутствие данных, а не отсутствие покупателей.",
+    "Bakery": "Хлеб", "Dairy": "Молочка", "Drinks": "Напитки", "Fruit & veg": "Овощи и фрукты",
+    "Household": "Бытовая химия", "Snacks": "Снеки", "Grocery": "Бакалея", "Sweets": "Сладости",
+    "Tea & coffee": "Чай и кофе", "Promo stand": "Акции", "Queue": "Очередь", "Checkout": "Касса",
+    "Overhead camera 01": "Камера 01 над залом",
+}
 
-def label(value):
-    return str(value if value is not None else "Unavailable")
+
+def translator(report):
+    return (lambda text: RU.get(text, text)) if report.get("lang") == "ru" else (lambda text: text)
 
 
-def duration(value):
+def label(value, tr=lambda text: text):
+    return str(value if value is not None else tr("Unavailable"))
+
+
+def duration(value, tr=lambda text: text):
     if value is None:
-        return "Unavailable"
-    return (
-        f"{value / 3600:.2f} h"
-        if value >= 3600
-        else f"{value / 60:.1f} min"
-        if value >= 60
-        else f"{value:.1f} s"
-    )
+        return tr("Unavailable")
+    russian = tr("Unavailable") != "Unavailable"
+    if value >= 3600:
+        return f"{value / 3600:.2f} ч" if russian else f"{value / 3600:.2f} h"
+    if value >= 60:
+        return f"{value / 60:.1f} мин" if russian else f"{value / 60:.1f} min"
+    return f"{value:.1f} с" if russian else f"{value:.1f} s"
 
 
 def period(report):
     p = report["period"]
-    return (
-        "Selected recording collection"
-        if report["scope"] == "collection"
-        else f"{p['start']} to {p['end']} ({p['timezone']})"
-    )
+    tr = translator(report)
+    if report["scope"] == "collection":
+        return tr("Selected recording collection")
+    joiner = "по" if report.get("lang") == "ru" else "to"
+    return f"{p['start']} {joiner} {p['end']} ({p['timezone']})"
 
 
 def opening(report):
     s = report["summary"]
     n = len(report["recordings"])
+    tr = translator(report)
+    russian = report.get("lang") == "ru"
     if not n:
-        return "No completed analyses match the selected period and recordings. Store activity cannot be assessed from this report because analysed coverage is unavailable."
+        return (
+            "За выбранный период нет завершённых анализов. Оценить активность магазина по этому отчёту нельзя."
+            if russian
+            else "No completed analyses match the selected period and recordings. Store activity cannot be assessed from this report because analysed coverage is unavailable."
+        )
+    if russian:
+        return f"Отчёт охватывает проанализированных записей: {n}. Треков внутри камер: {s['tracks']}, подборов: {label(s['pickups'], tr)}, сигналов ждёт проверки: {s['pending']}. Треки не являются числом уникальных покупателей."
     return f"This report covers {n} analysed recordings with {s['tracks']} camera-local observed track IDs and {label(s['pickups'])} pickup candidates. There are {s['pending']} pending signals for operator review. Track IDs are not a deduplicated customer count."
 
 
+def traffic_line(report):
+    s = report["summary"]
+    tr = translator(report)
+    if report.get("lang") == "ru":
+        line = f"Просмотрено: {duration(s['observed_seconds'], tr)}. Максимум треков в одном кадре: {s['peak_people']}. Входов в зоны: {s['area_visits']}. Принято сигналов: {s['accepted']}, отклонено: {s['rejected']}."
+        if s.get("entries") is not None:
+            line += f" Вошло: {s['entries']}, вышло: {s['exits']}."
+        return line
+    line = f"Observed footage: {duration(s['observed_seconds'])}. Peak simultaneous observed tracks in one view: {s['peak_people']}. Area entries: {s['area_visits']}. Accepted signals: {s['accepted']}; dismissed: {s['rejected']}."
+    if s.get("entries") is not None:
+        line += f" Entries: {s['entries']}. Exits: {s['exits']}."
+    return line
+
+
+def check_rows(report):
+    tr = translator(report)
+    checks = report.get("crosscheck") or {}
+    rows = [[tr("Outcome"), tr("Count")]]
+    for key, text in (
+        ("left_without_checkout", "Left without reaching a till"),
+        ("lost_before_checkout", "Track lost before a till"),
+        ("still_in_view", "Still in view when the recording ended"),
+        ("reached_checkout", "Reached a till"),
+        ("checkout_not_mapped", "No checkout on this camera"),
+    ):
+        if checks.get(key):
+            rows.append([tr(text), checks[key]])
+    return rows
+
+
 def sections(report):
-    recordings = [["Recording and camera", "Tracks", "Pickups", "Observed time"]]
+    tr = translator(report)
+    recordings = [[tr("Recording and camera"), tr("Tracks"), tr("Pickups"), tr("Observed time")]]
     for r in report["recordings"]:
         recordings.append(
             [
-                r["name"] + "\n" + r["camera_id"],
+                tr(r["name"]) + "\n" + r["camera_id"],
                 r["summary"]["tracks"],
                 r["summary"]["pickups"],
-                duration(r["summary"]["observed_seconds"]),
+                duration(r["summary"]["observed_seconds"], tr),
             ]
         )
-    areas = [["Area and camera", "Tracks", "Visits", "Observed dwell", "Pickups"]]
+    areas = [[tr("Area and camera"), tr("Tracks"), tr("Visits"), tr("Observed dwell"), tr("Pickups")]]
     for a in sorted(report["areas"], key=lambda a: -a["unique_tracks"]):
         areas.append(
             [
-                a["name"] + "\n" + a["camera_id"],
+                tr(a["name"]) + "\n" + a["camera_id"],
                 a["unique_tracks"],
                 a["visits"],
-                duration(a["observed_dwell_seconds"]),
+                duration(a["observed_dwell_seconds"], tr),
                 a["pickup_alerts"],
             ]
         )
-    incidents = [["Signal and source time", "Camera", "Review", "Operator notes"]]
+    incidents = [[tr("Signal and source time"), tr("Camera"), tr("Review"), tr("Operator notes")]]
     for e in report["incidents"][:50]:
         incidents.append(
             [
-                e["name"] + f"\n{e['media_ms'] / 1000:.1f} s",
+                tr(e["name"]) + f"\n{e['media_ms'] / 1000:.1f} s",
                 e["camera_id"],
-                e["review"]["status"],
-                e["review"].get("notes", "") or "No notes",
+                tr(e["review"]["status"]),
+                e["review"].get("notes", "") or tr("No notes"),
             ]
         )
     dates = [
-        ["Recording date", "Track IDs present", "Pickup candidates", "Recordings"]
+        [tr("Recording date"), tr("Track IDs present"), tr("Pickup candidates"), tr("Recordings")]
     ] + [
         [d["date"], d["tracks"], d["pickups"], d["recordings"]] for d in report["daily"]
     ]
@@ -162,29 +256,26 @@ def build_pdf(report, path):
         )
     )
 
+    tr = translator(report)
+
     def para(text, style="BodyS"):
-        return Paragraph(escape(label(text)).replace("\n", "<br/>"), styles[style])
+        return Paragraph(escape(label(text, tr)).replace("\n", "<br/>"), styles[style])
 
     story = [
-        para("SENTIENT   /   OPERATIONS", "BrandS"),
+        para("SENTIENT", "BrandS"),
         para(report["title"], "TitleS"),
         para(period(report), "MutedS"),
         para(opening(report)),
+        para(traffic_line(report)),
     ]
-    s = report["summary"]
-    story.append(
-        para(
-            f"Observed footage: {duration(s['observed_seconds'])}. Peak simultaneous observed tracks in one view: {s['peak_people']}. Area entries: {s['area_visits']}. Accepted signals: {s['accepted']}; dismissed: {s['rejected']}."
-        )
-    )
     if report.get("notes"):
-        story.extend([para("Operator summary", "HeadS"), para(report["notes"])])
+        story.extend([para(tr("Operator summary"), "HeadS"), para(report["notes"])])
 
     def table(title, rows, widths):
         story.append(para(title, "HeadS"))
         if len(rows) < 2:
             story.append(
-                para("No measured results available for this section.", "MutedS")
+                para(tr("No measured results available for this section."), "MutedS")
             )
             return
         data = [
@@ -215,20 +306,24 @@ def build_pdf(report, path):
 
     recordings, areas, incidents, dates = sections(report)
     width = 468
-    table("Recording coverage", recordings, [240, 60, 60, 108])
-    table("Area performance", areas, [215, 55, 45, 88, 65])
-    table("Activity by recording date", dates, [150, 110, 110, 98])
-    table("Signals and operator review", incidents, [160, 95, 65, 148])
+    table(tr("Recording coverage"), recordings, [240, 60, 60, 108])
+    if len(check_rows(report)) > 1:
+        table(tr("Pickups against the till"), check_rows(report), [348, 120])
+    table(tr("Area performance"), areas, [215, 55, 45, 88, 65])
+    table(tr("Activity by recording date"), dates, [150, 110, 110, 98])
+    table(tr("Signals and operator review"), incidents, [160, 95, 65, 148])
     if len(report["incidents"]) > 50:
         story.append(
             para(
-                f"The first 50 of {len(report['incidents'])} signals are shown. The JSON report contains every signal.",
+                f"Показаны первые 50 из {len(report['incidents'])} сигналов. Все сигналы есть в JSON."
+                if report.get("lang") == "ru"
+                else f"The first 50 of {len(report['incidents'])} signals are shown. The JSON report contains every signal.",
                 "MutedS",
             )
         )
-    story.append(para("Coverage and interpretation", "HeadS"))
+    story.append(para(tr("Coverage and interpretation"), "HeadS"))
     for warning in report["warnings"]:
-        story.append(para(warning))
+        story.append(para(tr(warning)))
     if report["excluded"]:
         from collections import Counter
 
@@ -242,7 +337,7 @@ def build_pdf(report, path):
                 + "."
             )
         )
-    story.append(para("Reproducibility", "HeadS"))
+    story.append(para(tr("Reproducibility"), "HeadS"))
     story.append(
         para(
             f"Report ID: {report.get('id', 'preview')}. Generated: {report['created_at']}. The companion JSON contains run IDs, model IDs, saved geometry revisions and the full review snapshot. Area CSV is provided separately.",
@@ -256,7 +351,7 @@ def build_pdf(report, path):
         canvas.line(72, 47, 540, 47)
         canvas.setFont(font, 7)
         canvas.setFillColor(colors.HexColor("#6b7b71"))
-        canvas.drawString(72, 34, "SENTIENT / Recorded-video operations")
+        canvas.drawString(72, 34, "SENTIENT")
         canvas.drawRightString(540, 34, f"{doc.page}")
         canvas.restoreState()
 
@@ -304,22 +399,20 @@ def build_docx(report, path):
         style.font.color.rgb = RGBColor.from_string("233D32")
         style.paragraph_format.space_before = Pt(16)
         style.paragraph_format.space_after = Pt(8)
-    doc.add_paragraph("SENTIENT   /   OPERATIONS").runs[0].font.size = Pt(9)
+    tr = translator(report)
+    doc.add_paragraph("SENTIENT").runs[0].font.size = Pt(9)
     doc.add_paragraph(report["title"], style="Title")
     doc.add_paragraph(period(report))
     doc.add_paragraph(opening(report))
-    s = report["summary"]
-    doc.add_paragraph(
-        f"Observed footage {duration(s['observed_seconds'])}. Peak observed tracks in one view {s['peak_people']}. Area entries {s['area_visits']}. Accepted signals {s['accepted']}. Dismissed signals {s['rejected']}."
-    )
+    doc.add_paragraph(traffic_line(report))
     if report.get("notes"):
-        doc.add_heading("Operator summary", 1)
+        doc.add_heading(tr("Operator summary"), 1)
         doc.add_paragraph(report["notes"])
 
     def table(heading, rows, widths):
         doc.add_heading(heading, 1)
         if len(rows) < 2:
-            doc.add_paragraph("No measured results available for this section.")
+            doc.add_paragraph(tr("No measured results available for this section."))
             return
         t = doc.add_table(rows=1, cols=len(rows[0]))
         t.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -330,7 +423,7 @@ def build_docx(report, path):
             cells = t.rows[0].cells if i == 0 else t.add_row().cells
             for j, (cell, value) in enumerate(zip(cells, row)):
                 cell.width = Inches(widths[j])
-                cell.text = label(value)
+                cell.text = label(value, tr)
                 cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
                 props = cell._tc.get_or_add_tcPr()
                 shading = OxmlElement("w:shd")
@@ -369,27 +462,33 @@ def build_docx(report, path):
         doc.add_paragraph().paragraph_format.space_after = Pt(1)
 
     recordings, areas, incidents, dates = sections(report)
-    table("Recording coverage", recordings, [3.25, 0.8, 0.8, 1.65])
-    table("Area performance", areas, [3.1, 0.6, 0.6, 1.25, 0.95])
-    table("Activity by recording date", dates, [2, 1.5, 1.5, 1.5])
-    table("Signals and operator review", incidents, [2.2, 1.3, 0.9, 2.1])
+    table(tr("Recording coverage"), recordings, [3.25, 0.8, 0.8, 1.65])
+    if len(check_rows(report)) > 1:
+        table(tr("Pickups against the till"), check_rows(report), [4.8, 1.7])
+    table(tr("Area performance"), areas, [3.1, 0.6, 0.6, 1.25, 0.95])
+    table(tr("Activity by recording date"), dates, [2, 1.5, 1.5, 1.5])
+    table(tr("Signals and operator review"), incidents, [2.2, 1.3, 0.9, 2.1])
     if len(report["incidents"]) > 50:
         doc.add_paragraph(
-            f"The first 50 of {len(report['incidents'])} signals are shown. JSON contains every signal."
+            f"Показаны первые 50 из {len(report['incidents'])} сигналов. Все сигналы есть в JSON."
+            if report.get("lang") == "ru"
+            else f"The first 50 of {len(report['incidents'])} signals are shown. JSON contains every signal."
         )
-    doc.add_heading("Coverage and interpretation", 1)
+    doc.add_heading(tr("Coverage and interpretation"), 1)
     for warning in report["warnings"]:
-        doc.add_paragraph(warning)
+        doc.add_paragraph(tr(warning))
     if report["excluded"]:
         doc.add_paragraph(
-            f"{len(report['excluded'])} recordings were excluded because their date, analysis or period coverage was unavailable. Reasons are listed in the JSON report."
+            f"Исключено записей: {len(report['excluded'])}. Причины указаны в JSON."
+            if report.get("lang") == "ru"
+            else f"{len(report['excluded'])} recordings were excluded because their date, analysis or period coverage was unavailable. Reasons are listed in the JSON report."
         )
-    doc.add_heading("Reproducibility", 1)
+    doc.add_heading(tr("Reproducibility"), 1)
     doc.add_paragraph(
         f"Report ID {report.get('id', 'preview')}. Generated {report['created_at']}. The companion JSON includes source runs, model IDs, geometry and review state."
     )
     footer = section.footer.paragraphs[0]
-    footer.text = "SENTIENT / Recorded-video operations     "
+    footer.text = "SENTIENT     "
     footer.runs[0].font.size = Pt(8)
     field = OxmlElement("w:fldSimple")
     field.set(qn("w:instr"), "PAGE")
@@ -397,3 +496,182 @@ def build_docx(report, path):
     doc.core_properties.title = report["title"]
     doc.core_properties.author = "Sentient Operations"
     doc.save(str(path))
+
+
+# Till-roll summary of a day or week. The layout is plain text on purpose: it is
+# the document a shift manager would tear off, and it prints on any narrow printer.
+Z_TEXT = {
+    "en": dict(
+        title="FLOOR Z-REPORT", simulated="SIMULATED, NOT MEASURED", undated="UNDATED RECORDINGS",
+        came_in="CAME IN", left="LEFT", most="MOST IN STORE", busiest="BUSIEST HOUR", stay="TIME IN STORE",
+        queue="QUEUE", longest="LONGEST LINE", over="OVER THE LIMIT", typical="TYPICAL WAIT", worst="WORST 10% WAIT",
+        gave_up="GAVE UP WAITING", check="PICKUPS AGAINST THE TILL", pickups="PICKUP CANDIDATES",
+        reached="REACHED A TILL", passed="LEFT WITHOUT A TILL", lost="TRACK LOST", value="VALUE TO REVIEW",
+        todo="WHAT TO DO", minutes="MIN", hours="H",
+        note="Review candidates before acting. A pickup without a till is a reason to look, not proof of theft.",
+    ),
+    "ru": dict(
+        title="Z-ОТЧЁТ ЗАЛА", simulated="СИМУЛЯЦИЯ, НЕ ИЗМЕРЕНИЯ", undated="ЗАПИСИ БЕЗ ДАТЫ",
+        came_in="ВОШЛО", left="ВЫШЛО", most="МАКСИМУМ В ЗАЛЕ", busiest="ЧАС ПИК", stay="ВРЕМЯ В ЗАЛЕ",
+        queue="ОЧЕРЕДЬ", longest="САМАЯ ДЛИННАЯ", over="ВЫШЕ ЛИМИТА", typical="ОБЫЧНО ЖДУТ", worst="ХУДШИЕ 10%",
+        gave_up="НЕ ДОЖДАЛИСЬ", check="СВЕРКА С КАССОЙ", pickups="ПОДБОРЫ",
+        reached="ДОШЁЛ ДО КАССЫ", passed="МИМО КАССЫ", lost="ТРЕК ОБОРВАЛСЯ", value="НА ПРОВЕРКЕ",
+        todo="ЧТО СДЕЛАТЬ", minutes="МИН", hours="Ч",
+        note="Проверьте запись перед любыми действиями. Подбор мимо кассы повод посмотреть, а не доказательство кражи.",
+    ),
+}
+CODE39 = {
+    "0": "nnnwwnwnn", "1": "wnnwnnnnw", "2": "nnwwnnnnw", "3": "wnwwnnnnn", "4": "nnnwwnnnw",
+    "5": "wnnwwnnnn", "6": "nnwwwnnnn", "7": "nnnwnnwnw", "8": "wnnwnnwnn", "9": "nnwwnnwnn",
+    "Z": "nwwnwnnnn", "*": "nwnnwnwnn",
+}
+CURRENCY = dict(KZT="₸", USD="$", EUR="€", RUB="₽")
+
+
+def grouped(value):
+    return "—" if value is None else f"{value:,}".replace(",", " ")
+
+
+def wait_clock(seconds):
+    if seconds is None:
+        return "—"
+    total = round(seconds)
+    return f"{total // 60}:{total % 60:02d}"
+
+
+def spent(minutes, text):
+    if minutes is None:
+        return "—"
+    total = round(minutes)
+    return f"{total} {text['minutes']}" if total < 60 else f"{total // 60} {text['hours']} {total % 60} {text['minutes']}"
+
+
+def z_recommendation(item, lang):
+    p = item["params"]
+    name = RU.get(p.get("zone"), p.get("zone")) if lang == "ru" else p.get("zone")
+    hour = lambda h: f"{h:02d}:00"
+    if lang == "ru":
+        return {
+            "review_pickups": lambda: f"Проверить подборы: {p['count']}",
+            "open_till": lambda: f"Вторая касса {hour(p['start'])}-{hour(p['end'])}",
+            "dwell_no_pickup": lambda: f"Стоят, но не берут: {name}",
+            "cold_zone": lambda: f"Мало доходят: {name}",
+            "peak_hour": lambda: f"Смена на {hour(p['hour'])}",
+            "traffic_change": lambda: f"Трафик {p['delta']:+}%",
+        }[item["code"]]()
+    return {
+        "review_pickups": lambda: f"Review pickups: {p['count']}",
+        "open_till": lambda: f"Second till {hour(p['start'])}-{hour(p['end'])}",
+        "dwell_no_pickup": lambda: f"Stop but rarely take: {name}",
+        "cold_zone": lambda: f"Few reach: {name}",
+        "peak_hour": lambda: f"Staff for {hour(p['hour'])}",
+        "traffic_change": lambda: f"Footfall {p['delta']:+}%",
+    }[item["code"]]()
+
+
+def build_z_report(data, lang, target):
+    """Draw the floor report as an 80 mm till roll."""
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.pdfgen import canvas
+
+    text = Z_TEXT["ru" if lang == "ru" else "en"]
+    fonts = Path(__file__).parent / "assets/fonts"
+    if "SentientMono" not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont("SentientMono", str(fonts / "DejaVuSansMono.ttf")))
+        pdfmetrics.registerFont(TTFont("SentientMonoBold", str(fonts / "DejaVuSansMono-Bold.ttf")))
+    k = data["kpis"]
+    width, margin, size = 226.8, 13, 7.6
+    columns = int((width - margin * 2) / (size * 0.602))
+    leading = size + 3.2
+    rows = []
+
+    def centre(value, bold=False):
+        rows.append(("centre", value, bold))
+
+    def rule():
+        rows.append(("rule", "-" * columns, False))
+
+    def line(name, value, bold=False):
+        value = str(value)
+        dots = "." * max(1, columns - len(name) - len(value) - 2)
+        rows.append(("left", f"{name} {dots} {value}", bold))
+
+    def heading(value):
+        rows.append(("left", value, True))
+
+    name = "SENTIENT"
+    centre(name, True)
+    store = data["store"]
+    centre(("ДЕМО-МАГАЗИН" if lang == "ru" else "DEMO STORE") if store["simulated"] else store["id"].upper())
+    centre(text["title"], True)
+    if data["mode"] == "calendar":
+        centre(data["end"] if data["span_days"] == 1 else f"{data['start']} / {data['end']}")
+    else:
+        centre(text["undated"])
+    if store["simulated"]:
+        centre(text["simulated"], True)
+    rule()
+    line(text["came_in"], grouped(k["entries"]))
+    line(text["left"], grouped(k["exits"]))
+    line(text["most"], grouped(k["people_peak"]))
+    busiest = k["busiest_hour"]
+    line(text["busiest"], f"{busiest['hour']:02d}:00" if busiest else "—")
+    line(text["stay"], f"{k['visit_minutes']} {text['minutes']}" if k["visit_minutes"] is not None else "—")
+    if k["queue_peak"] is not None:
+        rule()
+        heading(text["queue"])
+        line(text["longest"], grouped(k["queue_peak"]))
+        line(text["over"], spent(k["queue_over_minutes"], text))
+        line(text["typical"], wait_clock(k["wait_median_s"]))
+        line(text["worst"], wait_clock(k["wait_p90_s"]))
+        line(text["gave_up"], grouped(k["abandoned"]))
+    if k["pickups"] is not None:
+        rule()
+        heading(text["check"])
+        line(text["pickups"], grouped(k["pickups"]))
+        line(text["reached"], grouped(k["reached_checkout"]))
+        line(text["passed"], grouped(k["left_without_checkout"]), True)
+        line(text["lost"], grouped(k["lost_before_checkout"]))
+    risk = data.get("value_at_risk") or {}
+    if risk.get("amount") is not None:
+        rule()
+        line(text["value"], f"{grouped(risk['amount'])} {CURRENCY.get(risk['currency'], risk['currency'])}", True)
+    actions = data.get("recommendations") or []
+    if actions:
+        rule()
+        heading(text["todo"])
+        for item in actions[:5]:
+            for part in textwrap.wrap("- " + z_recommendation(item, lang), columns, subsequent_indent="  "):
+                rows.append(("left", part, False))
+    rule()
+    for part in textwrap.wrap(text["note"], columns):
+        rows.append(("left", part, False))
+    code = "Z" + (data.get("end") or "0").replace("-", "")
+    height = margin * 2 + len(rows) * leading + 54
+    pdf = canvas.Canvas(target, pagesize=(width, height))
+    pdf.setTitle(text["title"])
+    pdf.setAuthor("Sentient")
+    y = height - margin - size
+    for kind, value, bold in rows:
+        pdf.setFont("SentientMonoBold" if bold else "SentientMono", size)
+        if kind == "centre":
+            pdf.drawCentredString(width / 2, y, value)
+        else:
+            pdf.drawString(margin, y, value)
+        y -= leading
+    modules = sum(sum(3 if e == "w" else 1 for e in CODE39[c]) + 1 for c in f"*{code}*")
+    unit = (width - margin * 2) / modules
+    x = margin
+    y -= 30
+    for character in f"*{code}*":
+        for index, element in enumerate(CODE39[character]):
+            size_units = 3 if element == "w" else 1
+            if index % 2 == 0:
+                pdf.rect(x, y, size_units * unit, 30, stroke=0, fill=1)
+            x += size_units * unit
+        x += unit
+    pdf.setFont("SentientMono", size)
+    pdf.drawCentredString(width / 2, y - 10, code)
+    pdf.showPage()
+    pdf.save()

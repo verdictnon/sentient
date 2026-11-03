@@ -33,13 +33,13 @@ function updateDashboard() {
         const dwell = areas.reduce((n, a) => n + (a.observed_dwell_seconds ?? 0), 0);
         $('metric-tracks').textContent = ready ? (state.seenTrackCount ?? state.paths.length) : '—';
         $('metric-pickups').textContent = ready ? (state.opsRunKey?.startsWith('track:') && !state.lastLive ? '—' : state.events.length) : '—';
-        $('metric-dwell').innerHTML = ready && state.stats?.physical_time_supported && visits ? `${(dwell/visits).toFixed(1)}<small>s</small>` : '—';
+        $('metric-dwell').innerHTML = ready && state.stats?.physical_time_supported && visits ? `${(dwell/visits).toFixed(1)}<small>${esc(t('s'))}</small>` : '—';
         $('metric-areas').textContent = state.geometry ? state.geometry.shapes.filter(s => s.kind !== 'line').length : '—';
         document.body.classList.toggle('running', !!(state.live || state.offline));
         $('run-history').disabled = !!state.offline || !!state.live || !state.histories.some(s => ['completed', 'stopped'].includes(s.status) && s.processed_frames > 0);
-        $('stage-mode').textContent = state.live ? 'Analyzing recording' : state.offline ? 'Full-video analysis' : 'Recording playback';
+        $('stage-mode').textContent = t(state.live ? (state.video?.source_profile?.simulated ? 'Simulated live run' : 'Analyzing recording') : state.offline ? 'Full-video analysis' : 'Recording playback');
         $('show-heatmap').disabled = !points.length || state.tab === 'geometry';
-        $('insight-scope').textContent = state.live ? 'Current live run' : ready ? 'Selected saved run' : 'Recording only';
+        $('insight-scope').textContent = t(state.live ? 'Current live run' : ready ? 'Selected saved run' : 'Recording only');
         const locked = !!(state.live || state.offline) || !state.video;
         for (const id of ['draw', 'finish', 'undo', 'cancel-draw', 'save-geometry', 'reload-geometry', 'shape-name', 'delete-shape', 'reverse', 'geometry-import', 'shape-kind']) $(id).disabled = locked;
         const key = [state.video?.id, state.live, state.tracking, state.lastLive, points.length, points.at(-1)?.[1], JSON.stringify(areas)].join('|');
@@ -56,48 +56,50 @@ function updateDashboard() {
 
 function drawTraffic(points) {
     if (!points.length) {
-        $('traffic-chart').innerHTML = '<p class="empty-chart">Run analysis to explore observed track presence.</p>';
+        $('traffic-chart').innerHTML = `<p class="empty-chart">${esc(t('Run analysis to explore observed track presence.'))}</p>`;
         return
     }
     const duration = Math.max(1, (state.live ? state.ms : (state.video.declared_duration_ms ?? state.video.last_media_time_ms)) / 1000),
         bins = Array.from({
             length: 12
         }, () => new Set());
-    for (const t of state.paths)
-        for (const segment of t.segments ?? [t.points ?? []])
-            for (const p of segment) bins[Math.max(0, Math.min(11, Math.floor(p[1] / 1000 / duration * 12)))].add(t.local_track_id);
+    for (const track of state.paths)
+        for (const segment of track.segments ?? [track.points ?? []])
+            for (const p of segment) bins[Math.max(0, Math.min(11, Math.floor(p[1] / 1000 / duration * 12)))].add(track.local_track_id);
     const max = Math.max(1, ...bins.map(b => b.size)),
         W = 480,
-        H = 145,
+        H = 150,
         left = 24,
         right = 8,
         top = 12,
         bottom = 24,
         plotH = H - top - bottom,
-        step = (W - left - right) / 12;
-    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Distinct observed tracks per interval in the recording">`;
+        step = (W - left - right) / 12,
+        bar = Math.min(24, step * .68);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('Distinct observed tracks per interval in the recording'))}">`;
     for (let i = 0; i <= 2; i++) {
-        const y = top + plotH * i / 2;
-        svg += `<line x1="${left}" y1="${y}" x2="${W-right}" y2="${y}" stroke="#33462b" stroke-dasharray="3 4"/><text x="${left-8}" y="${y+3}" text-anchor="end">${(max*(1-i/2)).toFixed(max%2?1:0)}</text>`
+        const y = top + plotH * i / 2,
+            value = max * (1 - i / 2);
+        svg += `<line class="grid-line" x1="${left}" y1="${y}" x2="${W-right}" y2="${y}"/><text class="axis-text" x="${left-8}" y="${y+3}" text-anchor="end">${Number.isInteger(value)?value:value.toFixed(1)}</text>`
     }
     bins.forEach((b, i) => {
         const h = b.size / max * plotH,
-            x = left + i * step + 6;
-        svg += `<rect x="${x}" y="${top+plotH-h}" width="${step-12}" height="${Math.max(0,h)}" rx="3" fill="${i===bins.length-1?'#c4f77b':'#6d9d48'}"><title>${(duration*i/12).toFixed(1)}–${(duration*(i+1)/12).toFixed(1)} s: ${b.size} observed tracks</title></rect>`
+            x = left + i * step + (step - bar) / 2;
+        svg += `<rect class="column" x="${x}" y="${top+plotH-h}" width="${bar}" height="${Math.max(0,h)}" rx="3"><title>${(duration*i/12).toFixed(1)}–${(duration*(i+1)/12).toFixed(1)} ${esc(t('s'))}: ${b.size}</title></rect>`
     });
-    for (let i = 0; i <= 4; i++) svg += `<text x="${left+(W-left-right)*i/4}" y="${H-5}" text-anchor="${i===0?'start':i===4?'end':'middle'}">${(duration*i/4).toFixed(1)}s</text>`;
+    for (let i = 0; i <= 4; i++) svg += `<text class="axis-text" x="${left+(W-left-right)*i/4}" y="${H-5}" text-anchor="${i===0?'start':i===4?'end':'middle'}">${(duration*i/4).toFixed(0)}${esc(t('s'))}</text>`;
     $('traffic-chart').innerHTML = svg + '</svg>';
-    $('traffic-caption').textContent = state.live ? 'Recent visible track samples · source time in seconds' : 'Source time in seconds · distinct camera-local tracks per interval';
+    $('traffic-caption').textContent = t(state.live ? 'Recent visible track samples, source time in seconds' : 'Source time in seconds, distinct camera-local tracks per interval');
 }
 
 function drawZones(areas) {
     if (!areas.length) {
-        $('zone-chart').innerHTML = '<p class="empty-chart">Map floor areas, then start analysis.</p>';
+        $('zone-chart').innerHTML = `<p class="empty-chart">${esc(t('Map floor areas, then start analysis.'))}</p>`;
         return
     }
     const rows = [...areas].sort((a, b) => b.unique_tracks - a.unique_tracks).slice(0, 5),
         max = Math.max(1, ...rows.map(a => a.unique_tracks));
-    $('zone-chart').innerHTML = rows.map(a => `<div class="zone-row"><span class="zone-name" title="${esc(a.name)}">${esc(a.name)}</span><span class="zone-track"><span class="zone-fill" style="width:${a.unique_tracks/max*100}%"></span></span><span class="zone-value">${a.unique_tracks}</span></div>`).join('');
+    $('zone-chart').innerHTML = rows.map(a => `<div class="zone-row"><span class="zone-name" title="${esc(t(a.name))}">${esc(t(a.name))}</span><span class="zone-track"><span class="zone-fill" style="width:${a.unique_tracks/max*100}%"></span></span><span class="zone-value">${a.unique_tracks}</span></div>`).join('');
 }
 
 function drawHeatmap(points) {
@@ -128,9 +130,10 @@ function drawHeatmap(points) {
     for (let i = 0; i < data.data.length; i += 4) {
         const a = data.data[i + 3] / 255;
         if (!a) continue;
-        data.data[i] = a > .5 ? 240 : 100 + a * 260;
-        data.data[i + 1] = a > .5 ? 190 - (a - .5) * 260 : 200 + a * 100;
-        data.data[i + 2] = a > .5 ? 60 : 100;
+        const [red, green, blue] = heatColour(Math.max(.07, a));
+        data.data[i] = red;
+        data.data[i + 1] = green;
+        data.data[i + 2] = blue;
         data.data[i + 3] = Math.round(Math.min(.8, a) * 255)
     }
     ctx.putImageData(data, 0, 0);
@@ -142,7 +145,7 @@ $('show-heatmap').onchange = () => {
 
 function renderHistory() {
     const rows = state.histories.filter(s => ['completed', 'stopped'].includes(s.status) && s.processed_frames > 0);
-    $('run-history').innerHTML = '<option value="">Choose a saved live run…</option>' + rows.map((s, i) => `<option value="${s.id}">${i===0?'Latest · ':''}${new Date(s.saved_at*1000).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})} · ${s.processed_frames} frames</option>`).join('');
+    $('run-history').innerHTML = `<option value="">${esc(t('Choose a saved live run…'))}</option>` + rows.map((s, i) => `<option value="${s.id}">${esc(t('{when}, {n} frames',{when:new Date(s.saved_at*1000).toLocaleString(locale(),{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}),n:s.processed_frames}))}</option>`).join('');
     if (state.lastLive) $('run-history').value = state.lastLive;
     $('run-history').disabled = !!state.offline || !!state.live || !rows.length;
 }
@@ -154,10 +157,10 @@ async function refreshHistory() {
     renderHistory()
 }
 async function showSavedLive(key, generation = state.generation) {
-    if (state.offline) throw Error('Wait for analysis or cancel it before opening another run.');
+    if (state.offline) throw Error(t('Wait for analysis or cancel it before opening another run.'));
     await stopLive();
     const [session, stats, response] = await Promise.all([api(`/api/live/sessions/${key}`), api(`/api/live/sessions/${key}/shelves`), fetch(`/api/live/sessions/${key}/observations`)]);
-    if (!response.ok) throw Error('This run has no saved observations.');
+    if (!response.ok) throw Error(t('This run has no saved observations.'));
     const rows = (await response.text()).trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
     if (generation !== state.generation) return;
     const p = session.latest,
@@ -174,7 +177,7 @@ async function showSavedLive(key, generation = state.generation) {
     if (typeof rememberRun === 'function') rememberRun(state.opsRunKey);
     state.tracking = null;
     state.analysisId = null;
-    state.replayFrames = new Map(rows.map(r => [Math.round(r.media_ms * 1000), r]));
+    state.replayFrames = rows;
     state.paths = Array.from(paths, ([local_track_id, points]) => ({
         local_track_id,
         segments: splitSegments(points)
@@ -189,8 +192,11 @@ async function showSavedLive(key, generation = state.generation) {
     $('live-frame').hidden = true;
     $('player').hidden = false;
     $('threshold').textContent = p.threshold?.toFixed(2) ?? '0.97';
-    $('run-status').textContent = 'Saved live results';
-    $('performance').textContent = `${p.processed_frames} sampled frames · ${p.scored_windows} windows scored`;
+    $('run-status').textContent = t('Saved live results');
+    $('performance').textContent = t('{n} sampled frames, {m} windows scored', {
+        n: p.processed_frames,
+        m: p.scored_windows
+    });
     $('run-details').textContent = JSON.stringify({
         session: key,
         status: p.status,
@@ -206,7 +212,7 @@ async function showSavedLive(key, generation = state.generation) {
     renderStats();
     renderHistory();
     await offlineFrame(0);
-    notice('Saved live run restored. Play the recording or inspect a candidate to explore the results.');
+    notice(t('Saved live run restored. Play the recording or inspect a candidate to explore the results.'));
 }
 async function refreshAreaStats() {
     if (state.tracking) state.stats = await api(`/api/shelves/jobs/${state.tracking}`);
@@ -216,7 +222,7 @@ async function refreshAreaStats() {
 $('run-history').onchange = guard(async () => {
     const key = $('run-history').value;
     if (!key) return;
-    if (state.dirty) throw Error('Save or discard geometry edits before opening a saved run.');
+    if (state.dirty) throw Error(t('Save or discard geometry edits before opening a saved run.'));
     await showSavedLive(key)
 });
 async function seekRecording(ms) {
@@ -236,7 +242,7 @@ async function seekRecording(ms) {
         player.currentTime = target
     });
     await offlineFrame(player.currentTime * 1000);
-    $('stage').scrollIntoView({
+    if ($('stage').getBoundingClientRect().top < 0) $('stage').scrollIntoView({
         behavior: 'smooth',
         block: 'center'
     });
@@ -257,36 +263,6 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeMenu()
 });
 
-function navigate(name) {
-    document.querySelectorAll('[data-nav]').forEach(b => {
-        b.classList.toggle('active', b.dataset.nav === name);
-        b.setAttribute('aria-current', b.dataset.nav === name ? 'page' : 'false')
-    });
-    $('page-label').textContent = {
-        overview: 'Overview',
-        analytics: 'Analytics',
-        geometry: 'Camera setup',
-        help: 'Demo guide'
-    } [name];
-    if (name === 'geometry' || name === 'help') {
-        tab(name);
-        document.querySelector('.viewer').scrollIntoView({
-            behavior: 'smooth',
-            block: 'start'
-        })
-    } else if (name === 'analytics') $('analytics-section').scrollIntoView({
-        behavior: 'smooth',
-        block: 'start'
-    });
-    else {
-        tab('results');
-        window.scrollTo({
-            top: 0,
-            behavior: 'smooth'
-        })
-    }
-    closeMenu();
-}
 document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => navigate(b.dataset.nav));
 $('configure-areas').onclick = () => navigate('geometry');
 $('fullscreen').onclick = guard(async () => {
@@ -297,7 +273,7 @@ $('player').addEventListener('loadeddata', () => {
     if (!state.live) offlineFrame($('player').currentTime * 1000).catch(e => notice(e.message, true))
 });
 $('player').addEventListener('error', () => {
-    if ($('player').getAttribute('src')) notice('This recording could not be played. Check that its source file is available.', true)
+    if ($('player').getAttribute('src')) notice(t('This recording could not be played. Check that its source file is available.'), true)
 });
 $('import-dialog').addEventListener('click', e => {
     if (e.target === $('import-dialog')) {
@@ -308,10 +284,10 @@ $('import-dialog').addEventListener('click', e => {
 updateDashboard();
 $('export').addEventListener('click', guard(async event => {
     event.preventDefault();
-    if (state.dirty) throw Error('Save or discard geometry edits before exporting.');
+    if (state.dirty) throw Error(t('Save or discard geometry edits before exporting.'));
     const generation = state.generation,
         source = await api($('export').getAttribute('href'));
-    if (generation !== state.generation) throw Error('Recording changed. Export the selected run again.');
+    if (generation !== state.generation) throw Error(t('Recording changed. Export the selected run again.'));
     const report = {
         ...(Array.isArray(source) ? {
             evidence: source
