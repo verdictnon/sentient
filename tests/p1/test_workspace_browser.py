@@ -104,6 +104,66 @@ class StoreViewTests(unittest.TestCase):
                     page.goto(url+'/?view='+view);page.wait_for_function('store.data');self.assertFalse(page.evaluate('document.documentElement.scrollWidth>innerWidth'),view)
                 self.assertEqual(errors,[]);browser.close()
 
+class ShelfCameraBrowserTests(unittest.TestCase):
+    def test_stock_workflow_and_synchronized_cameras(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder=Path(directory); seeded=demo_workspace(folder)
+            with server(folder) as url,sync_playwright() as pw:
+                browser=pw.chromium.launch(headless=True)
+                page=browser.new_page(viewport={'width':1440,'height':1000})
+                errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+                page.goto(url+'/?view=shelves&video='+seeded['video_id'])
+                page.wait_for_function('shelfOps.data?.shelves.length===10')
+                expect(page.locator('#stock-grid .stock-card')).to_have_count(10)
+                expect(page.locator('#stock-kpis')).to_contain_text('Refill queue')
+                first=page.locator('#stock-grid .stock-card').first
+                expect(first).to_contain_text('Empty')
+                first.locator('[data-stock]').click()
+                page.locator('#stock-action').select_option('refill')
+                page.locator('#stock-notes').fill('Restocked for evening shift')
+                page.locator('#stock-save').click()
+                expect(page.locator('#stock-dialog')).not_to_be_visible()
+                page.wait_for_function("shelfOps.data.shelves.find(s=>s.id==='shelf-dairy').stock.on_hand===60")
+                expect(page.locator('#stock-history')).to_contain_text('Restocked for evening shift')
+                page.reload();page.wait_for_function("shelfOps.data?.shelves.find(s=>s.id==='shelf-dairy').stock.on_hand===60")
+                page.locator('#shelf-sort').select_option('observed_dwell_seconds')
+                with page.expect_download() as download:
+                    page.locator('#shelf-overall-pdf').click()
+                output=folder/'overall.pdf';download.value.save_as(output)
+                self.assertTrue(output.read_bytes().startswith(b'%PDF'))
+                page.locator('[data-nav=cameras]').click()
+                page.wait_for_function("document.getElementById('sim-player').readyState>=2")
+                expect(page.locator('#sim-camera-grid canvas')).to_have_count(3)
+                page.locator('#sim-time').fill('5')
+                page.locator('#sim-time').dispatch_event('input')
+                page.wait_for_function("Math.abs(document.getElementById('sim-player').currentTime-5)<0.1")
+                page.wait_for_function("document.getElementById('sim-clock').textContent==='0:05'")
+                self.assertTrue(page.evaluate("Array.from(document.querySelectorAll('#sim-camera-grid canvas')).every(c=>c.getContext('2d').getImageData(0,0,100,100).data.some(v=>v>0))"))
+                page.locator('#sim-play').click()
+                page.wait_for_function("document.getElementById('sim-player').currentTime>5.4")
+                page.locator('[data-nav=shelves]').click()
+                self.assertTrue(page.evaluate("document.getElementById('sim-player').paused"))
+                # Product labels round-trip through the existing geometry editor.
+                page.goto(url+'/?view=geometry&video='+seeded['video_id'])
+                page.wait_for_function("state.geometry?.shapes.some(s=>s.id==='shelf-dairy')")
+                page.locator('[data-shape=shelf-dairy]').click()
+                page.locator('#shelf-product').fill('Milk and kefir')
+                page.locator('#save-geometry').click()
+                expect(page.locator('#geometry-revision')).not_to_contain_text('Unsaved')
+                page.locator('[data-nav=shelves]').click()
+                expect(page.locator('#stock-grid')).to_contain_text('Milk and kefir')
+                page.locator('#lang-toggle').click()
+                page.wait_for_function('shelfOps.data?.shelves.length===10')
+                expect(page.locator('#page-label')).to_have_text('Полки')
+                page.set_viewport_size({'width':390,'height':844})
+                for view in ('shelves','cameras'):
+                    page.goto(url+'/?view='+view+'&video='+seeded['video_id'])
+                    page.wait_for_function('ops.booted')
+                    page.wait_for_function('shelfOps.data' if view=='shelves' else 'cameraSim.data?.available')
+                    self.assertFalse(page.evaluate('document.documentElement.scrollWidth>innerWidth'),view)
+                self.assertEqual(errors,[])
+                browser.close()
+
 class WorkspaceBrowserTests(unittest.TestCase):
     def test_operations_track_reviews_reports_and_schedules(self):
         with tempfile.TemporaryDirectory() as directory:

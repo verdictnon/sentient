@@ -101,8 +101,8 @@ function renderPeriod() {
 }
 
 function setSimulatedTape() {
-    const onStore = ['store', 'analytics'].includes(ops.view) && store.data?.basis === 'simulated',
-        onCamera = !['store', 'reports', 'system', 'help'].includes(ops.view) && state.video?.source_profile?.simulated;
+    const onStore = (['store', 'analytics'].includes(ops.view) && store.data?.basis === 'simulated') || (ops.view === 'shelves' && shelfOps.data?.simulated) || (ops.view === 'cameras' && cameraSim.data?.available),
+        onCamera = !['store', 'shelves', 'cameras', 'reports', 'system', 'help'].includes(ops.view) && state.video?.source_profile?.simulated;
     $('sim-tape').hidden = !(onStore || onCamera);
 }
 
@@ -653,7 +653,7 @@ function renderZoneTable(d) {
         $('zone-table').innerHTML = `<p class="empty-chart">${esc(t('Map shelf areas in Camera setup to rank them.'))}</p>`;
         return;
     }
-    $('zone-table').innerHTML = `<table class="data-table"><thead><tr><th>${esc(t('Area'))}</th><th class="wide">${esc(t('Tracks'))}</th><th>${esc(t('Time per visit'))}</th><th>${esc(t('Pickups'))}</th><th>${esc(t('Pickup rate'))}</th><th>${esc(t('To review'))}</th></tr></thead><tbody>${rows.map(z=>`<tr><td>${esc(t(z.name))}</td><td class="wide"><span class="bar-cell"><span class="bar-fill" style="width:${z.tracks/top*100}%"></span></span><span class="bar-value">${number(z.tracks)}</span></td><td>${z.dwell_per_visit_s===null?'—':Math.round(z.dwell_per_visit_s)+' '+esc(t('s'))}</td><td>${number(z.pickups)}</td><td>${z.pickup_rate===null?'—':Math.round(z.pickup_rate*100)+'%'}</td><td>${z.needs_review?`<span class="count-flag">${number(z.needs_review)}</span>`:'—'}</td></tr>`).join('')}</tbody></table>`;
+    $('zone-table').innerHTML = `<table class="data-table"><thead><tr><th>${esc(t('Area'))}</th><th class="wide">${esc(t('Tracks'))}</th><th>${esc(t('Visits'))}</th><th>${esc(t('Total time near shelf'))}</th><th>${esc(t('Time per visit'))}</th><th>${esc(t('Pickups'))}</th><th>${esc(t('Pickup rate'))}</th><th>${esc(t('To review'))}</th></tr></thead><tbody>${rows.map(z=>`<tr><td>${esc(t(z.name))}${z.product_type?`<small class="muted">${esc(t(z.product_type))}</small>`:""}</td><td class="wide"><span class="bar-cell"><span class="bar-fill" style="width:${z.tracks/top*100}%"></span></span><span class="bar-value">${number(z.tracks)}</span></td><td>${number(z.visits)}</td><td>${sec(z.dwell_s)}</td><td>${z.dwell_per_visit_s===null?'—':Math.round(z.dwell_per_visit_s)+' '+esc(t('s'))}</td><td>${number(z.pickups)}</td><td>${z.pickup_rate===null?'—':Math.round(z.pickup_rate*100)+'%'}</td><td>${z.needs_review?`<span class="count-flag">${number(z.needs_review)}</span>`:'—'}</td></tr>`).join('')}</tbody></table>`;
 }
 
 function renderFunnel(d) {

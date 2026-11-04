@@ -16,6 +16,8 @@ from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
+from app import shelf_operations
+from app.shelf_operations import StockUpdate
 from app.insights import analyse
 from app.journeys import track_journey
 from app.p1.geometry import load_geometry
@@ -144,6 +146,7 @@ class Operations:
             CREATE TABLE IF NOT EXISTS ops_schedules(id TEXT PRIMARY KEY,payload TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS ops_simulated_days(store_id TEXT NOT NULL,day TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(store_id,day));
             CREATE TABLE IF NOT EXISTS ops_rollup_cache(key TEXT PRIMARY KEY,video_id TEXT NOT NULL,payload TEXT NOT NULL);""")
+        shelf_operations.initialize(catalog)
         self.demo = dict(status="idle", progress=0.0, stage=None, error=None)
 
     def settings(self):
@@ -675,6 +678,7 @@ class Operations:
                     summary=summary,
                     geometry_id=saved["id"],
                     queue=data["queue"],
+                    routes=data["routes"],
                     line_counts=data["line_counts"],
                 )
             )
@@ -747,6 +751,10 @@ class Operations:
             summary=totals,
             recordings=items,
             areas=area_rows,
+            shelf_operations=[
+                shelf_operations.snapshot(self, item["video_id"], metrics=False)
+                for item in items
+            ],
             incidents=incidents,
             daily=[dict(date=k, **v) for k, v in sorted(daily.items())],
             excluded=excluded,
@@ -907,8 +915,14 @@ class Operations:
             span = (
                 datetime.fromisoformat(last) - datetime.fromisoformat(first)
             ).days + 1
-            earlier_end = (datetime.fromisoformat(first) - timedelta(days=1)).date().isoformat()
-            earlier_start = (datetime.fromisoformat(first) - timedelta(days=span)).date().isoformat()
+            earlier_end = (
+                (datetime.fromisoformat(first) - timedelta(days=1)).date().isoformat()
+            )
+            earlier_start = (
+                (datetime.fromisoformat(first) - timedelta(days=span))
+                .date()
+                .isoformat()
+            )
             current = [d for d in days if first <= d["date"] <= last]
             previous = [d for d in days if earlier_start <= d["date"] <= earlier_end]
         else:
@@ -928,7 +942,11 @@ class Operations:
         ]
         camera = next((c for c in cameras if c["camera_id"] == camera_id), None) or (
             next(
-                (c for c in cameras if any(d["camera_id"] == c["camera_id"] for d in current)),
+                (
+                    c
+                    for c in cameras
+                    if any(d["camera_id"] == c["camera_id"] for d in current)
+                ),
                 cameras[0] if cameras else None,
             )
         )
@@ -936,7 +954,18 @@ class Operations:
             own = [d for d in current if d["camera_id"] == camera["camera_id"]]
             if len(own) != len(current):
                 data["heat"] = period_payload(own, [], settings)["heat"]
-            camera["shapes"] = load_geometry(self.catalog, camera["video_id"])["geometry"]["shapes"]
+            camera["shapes"] = load_geometry(self.catalog, camera["video_id"])[
+                "geometry"
+            ]["shapes"]
+            if store["simulated"]:
+                labels = {s["id"]: s for s in camera["shapes"]}
+                for area in data["zones"]:
+                    shape = labels.get(area["id"])
+                    if shape:
+                        area.update(
+                            name=shape["name"],
+                            product_type=shape.get("product_type", ""),
+                        )
             camera["frame_url"] = (
                 "/api/ops/demo-store/floor.png"
                 if store["simulated"]
@@ -946,9 +975,13 @@ class Operations:
             d
             for d in days
             if mode == "calendar"
-            and (datetime.fromisoformat(last) - timedelta(days=6)).date().isoformat() <= d["date"] <= last
+            and (datetime.fromisoformat(last) - timedelta(days=6)).date().isoformat()
+            <= d["date"]
+            <= last
         ]
-        data["week_grid"] = period_payload(recent, [], settings)["grid"] if recent else []
+        data["week_grid"] = (
+            period_payload(recent, [], settings)["grid"] if recent else []
+        )
         data.update(
             store=store,
             stores=stores,
@@ -960,7 +993,10 @@ class Operations:
             cameras=cameras,
             available_days=dated,
             basis="simulated" if store["simulated"] else "measured",
-            settings={k: settings[k] for k in ("timezone", "queue_limit", "currency", "avg_item_value")},
+            settings={
+                k: settings[k]
+                for k in ("timezone", "queue_limit", "currency", "avg_item_value")
+            },
         )
         return data
 
@@ -1054,11 +1090,14 @@ class Operations:
 
                 build_documents(report, temp)
                 # The byte order mark lets Excel read Cyrillic area names.
-                with (temp / "areas.csv").open("w", newline="", encoding="utf-8-sig") as f:
+                with (temp / "areas.csv").open(
+                    "w", newline="", encoding="utf-8-sig"
+                ) as f:
                     writer = csv.writer(f)
                     cols = [
                         "camera_id",
                         "name",
+                        "product_type",
                         "kind",
                         "unique_tracks",
                         "visits",
@@ -1068,7 +1107,9 @@ class Operations:
                     basis = "simulated" if report["simulated"] else "measured"
                     writer.writerow(cols + ["basis"])
                     for a in report["areas"]:
-                        writer.writerow([safe_csv(a.get(c, "")) for c in cols] + [basis])
+                        writer.writerow(
+                            [safe_csv(a.get(c, "")) for c in cols] + [basis]
+                        )
                 temp.rename(folder)
                 saved = dict(
                     id=key,
@@ -1313,6 +1354,20 @@ def router(ops):
             raise KeyError("The demo store has not been built")
         return FileResponse(path, media_type="image/png")
 
+    @r.get("/recordings/{video_id}/shelves")
+    def shelf_status(video_id: str):
+        return shelf_operations.snapshot(ops, video_id)
+
+    @r.put("/recordings/{video_id}/shelves/{shelf_id}")
+    def shelf_update(video_id: str, shelf_id: str, value: StockUpdate):
+        return shelf_operations.update(ops, video_id, shelf_id, value.model_dump())
+
+    @r.get("/demo-store/cameras")
+    def camera_views():
+        from app.simulation import camera_manifest
+
+        return camera_manifest(ops)
+
     @r.get("/runs")
     def runs(video_id: str | None = None):
         return ops.runs(video_id)
@@ -1385,7 +1440,9 @@ def router(ops):
             width = side * 16 / 9
             left = min(max(0, (x1 + x2) / 2 - width / 2), max(0, image.width - width))
             top = min(max(0, (y1 + y2) / 2 - side / 2), max(0, image.height - side))
-            image = image.crop((int(left), int(top), int(left + width), int(top + side)))
+            image = image.crop(
+                (int(left), int(top), int(left + width), int(top + side))
+            )
         else:
             caption = f"{identity} | {row['media_ms'] / 1000:.2f}s | observed frame {row['frame_index']}"
             draw.rectangle((0, 0, image.width, 28), fill="#0C1424")

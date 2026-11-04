@@ -272,6 +272,8 @@ function renderShapes() {
     $('shape-editor').hidden = !s;
     if (s) {
         $('shape-name').value = s.name;
+        $('shelf-product-field').hidden = s.kind !== 'shelf';
+        $('shelf-product').value = s.product_type ?? '';
         $('reverse').hidden = s.kind !== 'line';
         $('line-meaning-field').hidden = s.kind !== 'line';
         $('line-meaning').value = s.positive_means ?? ''
@@ -814,6 +816,10 @@ $('shape-name').oninput = () => {
         block: 'center',
         behavior: 'instant'
     })
+};
+$('shelf-product').oninput = () => {
+    const shape = state.geometry.shapes.find(s => s.id === state.selected);
+    if (shape?.kind === 'shelf') { shape.product_type = $('shelf-product').value; markDirty(); }
 };
 $('reverse').onclick = () => {
     state.geometry.shapes.find(s => s.id === state.selected).points.reverse();

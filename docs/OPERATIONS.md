@@ -79,6 +79,47 @@ never share a rollup. An explicit report selection that mixes them is refused, a
 open scope such as a schedule covers only the real ones. Rebuilding replaces only the
 simulated store.
 
+## Shelf operations and camera simulation
+
+**Camera setup** gives a shelf two labels: **Area name** identifies the physical
+bay, and **Product type** records what belongs there. Existing geometry without a
+product field remains valid. Labels survive geometry import/export and feed
+shelf cards, analytics, area CSV/JSON and PDFs.
+
+**Shelves** selects a recording and uses its best completed run for visits,
+camera-local tracks and total observed dwell. Sort by refill priority, visits,
+tracks or dwell. **View paths** opens Track explorer filtered to that shelf.
+Analytics also shows visits and total dwell alongside time per visit.
+
+Record a counted quantity, shelf capacity and a refill threshold. A stock count
+at or below the threshold enters the refill queue; zero is marked empty. **Add
+refill units** increases stock and **Remove confirmed units** decreases it. Every
+successful update records a revision, before/after quantities, time and notes.
+Conflicting edits are rejected rather than silently overwriting a count. Counts
+persist across restarts and recordings with the same store, camera and shelf ID.
+Changing a shelf ID creates a separate stock identity. Different camera IDs have
+separate inventories; overlapping cameras must not be treated as separate stock.
+
+The stock ledger is operator-confirmed. The existing person/pickup models cannot
+measure remaining product quantities. Candidates never decrement inventory.
+The simulated store seeds explicitly simulated counts, including empty and low
+shelves, so the full count/refill workflow can be demonstrated.
+
+**Overall PDF** reports the selected recording; Report centre can include multiple
+recordings and calendar scopes. PDFs include shelf product labels, route counts
+and stock at generation time, clearly separate from the activity period. JSON
+freezes the stock snapshot and its recent audit history. Historical reports never
+change after a refill. **Stock CSV** exports counts with their simulated flag.
+
+**Camera simulation** opens three virtual crops of the demo source: shelves,
+checkout/queue and exit. A single video clock controls playback, seeking and speed.
+All views show observed IDs and optional 12-second trails; event buttons seek every
+view together. Shelf counts overlay the same geometry used by Shelf operations.
+These are views of one overhead simulation, not independent physical camera feeds
+or cross-camera re-identification. No extra observations enter rollups or reports.
+Use **Explore source tracks** to investigate the underlying saved run. Real
+recordings and simulated data remain separate.
+
 ## Monitor and tracking
 
 Select a recording from the searchable strip under the camera. The saved-analysis selector

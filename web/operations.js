@@ -14,6 +14,8 @@ const ops = {
     health: null
 };
 const viewInfo = {
+    shelves: ['Shelves', 'Stock checks, refill work and shelf activity.'],
+    cameras: ['Camera simulation', 'Synchronized views of the simulated store.'],
     store: ['Store', 'The day on one screen.'],
     overview: ['Monitor', 'Watch a camera and its signals.'],
     analytics: ['Analytics', 'Traffic, queues, shelves and routes.'],
@@ -25,6 +27,8 @@ const viewInfo = {
     help: ['Demo guide', 'How to get the most out of each view.']
 };
 const VIEW_SECTIONS = {
+    shelves: ['shelf-operations-section'],
+    cameras: ['camera-simulation-section'],
     store: ['store-section'],
     overview: ['filmstrip', 'monitor-work'],
     tracking: ['filmstrip', 'monitor-work', 'tracking-section'],
@@ -102,6 +106,9 @@ function navigate(name) {
     for (const id of ALL_SECTIONS) $(id).hidden = !visible.has(id);
     if (name === 'geometry' || name === 'help') tab(name);
     else if (state.tab !== 'results') tab('results');
+    if (name !== 'cameras') $('sim-player').pause();
+    if (name === 'shelves') loadShelfOperations().catch(e => toast(e.message, true));
+    if (name === 'cameras') loadCameraSimulation().catch(e => toast(e.message, true));
     if (name === 'reports') refreshWorkspace().catch(e => toast(e.message, true));
     if (name === 'system') refreshHealth().catch(e => toast(e.message, true));
     if (name === 'analytics' || name === 'tracking' || name === 'incidents') refreshInsights().catch(e => toast(e.message, true));

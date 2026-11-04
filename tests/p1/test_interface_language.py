@@ -5,7 +5,7 @@ import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS = ("workspace.js", "dashboard.js", "store.js", "operations.js")
+SCRIPTS = ("workspace.js", "dashboard.js", "store.js", "operations.js", "shelf-operations.js")
 
 
 def dictionary():

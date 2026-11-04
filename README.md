@@ -37,6 +37,14 @@ as real recordings, and the two never share a rollup or a report.
   from door to till, and the most common routes.
 - **Cameras, Tracks, Investigations and Reports:** source-paced analysis, track
   histories, operator reviews, and PDF, Word, CSV and JSON reports on a schedule.
+- **Shelves:** separate area and product labels, confirmed stock counts, capacity,
+  refill thresholds, a prioritized refill queue and an auditable movement history.
+  Rank shelves by visits, tracks or total observed dwell; open their source paths.
+- **Camera simulation:** synchronized shelf, checkout and exit views, shared
+  playback controls, trails, stock overlays and event seeking. These virtual crops
+  use one simulated source and do not add duplicate recordings or totals.
+- **Overall PDF:** shelf activity, popular routes, investigations and a frozen
+  stock snapshot at generation time. Reports remain available in Report centre.
 - Light and dark themes, in English and Russian.
 
 ## Real recordings

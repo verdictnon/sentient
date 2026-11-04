@@ -8,7 +8,7 @@ class ShelfStats:
         self.areas = {s['id']: s for s in geometry['shapes'] if s['kind'] in ('shelf', 'zone', 'checkout', 'exit', 'queue')}
         self.polygons = {k: Polygon(tuple(map(tuple, s['points']))) for k,s in self.areas.items()}
         self.lines = {s['id']: (s, Line(*map(tuple, s['points']), s.get('hysteresis_px',5))) for s in geometry['shapes'] if s['kind']=='line'}
-        self.stats = {k: dict(id=k,name=s['name'],kind=s['kind'],visits=0,observed_dwell_seconds=0.,pickup_alerts=0) for k,s in self.areas.items()}
+        self.stats = {k: dict(id=k,name=s['name'],kind=s['kind'],product_type=s.get('product_type',''),visits=0,observed_dwell_seconds=0.,pickup_alerts=0) for k,s in self.areas.items()}
         self.visitors = {k:set() for k in self.areas}
         self.last = {}; self.occupants={k:set() for k in self.areas}; self.pickup_ids=set()
         self.crossings={k:dict(id=k,name=s['name'],positive=0,negative=0) for k,(s,_) in self.lines.items()}

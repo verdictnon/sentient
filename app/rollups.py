@@ -11,7 +11,7 @@ from datetime import timedelta
 
 from app.journeys import CROSSCHECK_STATUSES, NEEDS_REVIEW, line_flow, routes
 
-ROLLUP_VERSION = 1
+ROLLUP_VERSION = 2
 GRID = (48, 27)
 WAIT_BIN_SECONDS = 15
 
@@ -64,7 +64,9 @@ def empty_day(date, basis, camera_id):
     )
 
 
-def day_rollups(result, rows, geometry, started, tz, first_media_ms, dimensions, *, basis, camera_id):
+def day_rollups(
+    result, rows, geometry, started, tz, first_media_ms, dimensions, *, basis, camera_id
+):
     """Split one analysed recording into per-day rollups on the store's own clock."""
     second_cache = {}
 
@@ -94,7 +96,9 @@ def day_rollups(result, rows, geometry, started, tz, first_media_ms, dimensions,
         date, hour = bucket(ms)
         target = day(date)
         slot = target["hours"][hour]
-        observed = [t for t in row.get("tracks", []) if t["position_status"] == "observed"]
+        observed = [
+            t for t in row.get("tracks", []) if t["position_status"] == "observed"
+        ]
         slot["people_sum"] += len(observed)
         slot["samples"] += 1
         slot["people_peak"] = max(slot["people_peak"], len(observed))
@@ -145,6 +149,7 @@ def day_rollups(result, rows, geometry, started, tz, first_media_ms, dimensions,
                 id=visit["area_id"],
                 name=visit["name"],
                 kind=visit["kind"],
+                product_type=shapes[visit["area_id"]].get("product_type", ""),
                 visits=0,
                 dwell_s=0.0,
                 pickups=0,
@@ -180,8 +185,12 @@ def day_rollups(result, rows, geometry, started, tz, first_media_ms, dimensions,
         target["served"] += queue.get("served") or 0
         target["doors_configured"] = result["footfall"]["configured"]
         target["queue_configured"] = any(s["kind"] == "queue" for s in shapes.values())
-        target["checkout_configured"] = any(s["kind"] == "checkout" for s in shapes.values())
-        target["pickups_scored"] = result["summary"].get("pickup_scoring_available", True)
+        target["checkout_configured"] = any(
+            s["kind"] == "checkout" for s in shapes.values()
+        )
+        target["pickups_scored"] = result["summary"].get(
+            "pickup_scoring_available", True
+        )
         for step in result["funnel"]:
             if step["count"] is not None:
                 target["funnel"][step["key"]] += step["count"]
@@ -236,11 +245,15 @@ def freeze(day):
                 id=zone["id"],
                 name=zone["name"],
                 kind=zone["kind"],
+                product_type=zone.get("product_type", ""),
                 visits=zone["visits"],
                 tracks=len(zone["tracks"]),
                 dwell_s=round(zone["dwell_s"], 1),
                 pickups=zone["pickups"],
-                people_sum={("x" if h is None else str(h)): n for h, n in zone["people_sum"].items()},
+                people_sum={
+                    ("x" if h is None else str(h)): n
+                    for h, n in zone["people_sum"].items()
+                },
             )
             for key, zone in day["zones"].items()
         },
@@ -312,6 +325,7 @@ def merge(days):
                     id=key,
                     name=zone["name"],
                     kind=zone["kind"],
+                    product_type=zone.get("product_type", ""),
                     visits=0,
                     tracks=0,
                     dwell_s=0.0,
@@ -336,7 +350,14 @@ def merge(days):
         review_zones.update(day["review_zones"])
         funnel.update(day["funnel"])
         funnel_known.update(day["funnel"])
-        for key in ("wait_sum", "wait_count", "visit_seconds", "tracks", "abandoned", "served"):
+        for key in (
+            "wait_sum",
+            "wait_count",
+            "visit_seconds",
+            "tracks",
+            "abandoned",
+            "served",
+        ):
             totals[key] += day[key]
         if day["wait_max"] is not None:
             wait_max = max(wait_max or 0, day["wait_max"])
@@ -433,13 +454,18 @@ def zone_rows(period):
                 id=zone["id"],
                 name=zone["name"],
                 kind=zone["kind"],
+                product_type=zone.get("product_type", ""),
                 visits=zone["visits"],
                 tracks=zone["tracks"],
                 reach=round(zone["tracks"] / total_tracks, 3) if total_tracks else None,
-                dwell_per_visit_s=round(zone["dwell_s"] / zone["visits"], 1) if zone["visits"] else None,
+                dwell_per_visit_s=round(zone["dwell_s"] / zone["visits"], 1)
+                if zone["visits"]
+                else None,
                 dwell_s=round(zone["dwell_s"], 1),
                 pickups=zone["pickups"],
-                pickup_rate=round(zone["pickups"] / zone["visits"], 3) if zone["visits"] else None,
+                pickup_rate=round(zone["pickups"] / zone["visits"], 3)
+                if zone["visits"]
+                else None,
                 needs_review=period["review_zones"].get(zone["id"], 0),
                 people_by_hour={h: n for h, n in zone["people_sum"].items()},
             )
