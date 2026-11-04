@@ -22,6 +22,10 @@ layers, the Z-report PDF and 390 px layouts with no horizontal overflow.
 store, with a 380 MB Python environment and a 5.5 MB workspace. The script then rebuilt
 in 77 seconds with review clips included.
 
+To get as close to Windows as this environment allows, the store was also built with
+the `spawn` start method, and the store and operations tests ran with an ASCII default
+encoding. Both passed.
+
 ## Rehearsal
 
 The steps in docs/PITCH_DEMO.md were walked with real clicks at 1366×768 and

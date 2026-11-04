@@ -1053,7 +1053,8 @@ class Operations:
                 from app.report_documents import build_documents
 
                 build_documents(report, temp)
-                with (temp / "areas.csv").open("w", newline="") as f:
+                # The byte order mark lets Excel read Cyrillic area names.
+                with (temp / "areas.csv").open("w", newline="", encoding="utf-8-sig") as f:
                     writer = csv.writer(f)
                     cols = [
                         "camera_id",

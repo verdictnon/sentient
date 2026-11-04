@@ -7,7 +7,7 @@ and the video stays there.
 
 ## Try it
 
-You need Python 3.12 or newer. No footage, models or GPU.
+You need Python 3.12 or 3.13. No footage, models or GPU.
 
 ```sh
 ./run_demo.sh     # macOS or Linux
