@@ -57,7 +57,7 @@ async function changeStore(id) {
         print: true
     });
     const camera = store.data?.camera;
-    if (camera && camera.video_id !== state.video?.id && !state.live && !state.offline) await loadVideo(camera.video_id);
+    if (camera && state.videos.some(v => v.id === camera.video_id) && camera.video_id !== state.video?.id && !state.live && !state.offline) await loadVideo(camera.video_id);
 }
 
 async function loadStore(options = {}) {
@@ -334,6 +334,36 @@ function setupStep(view, title, detail, link) {
     };
 }
 
+// Fixed advice per finding: how to stop the same thing happening again.
+const PREVENTION = {
+    review_pickups: 'Keep this shelf in view of the till and check flagged clips before closing.',
+    open_till: 'Roster a second cashier for these hours every week, not when the line has already formed.',
+    dwell_no_pickup: 'Check price tags and stock here first, then move the best seller to eye level.',
+    cold_zone: 'Put a sign at the aisle entrance or swap this shelf with one on the main route.',
+    peak_hour: 'Plan breaks and restocking outside this hour.',
+    traffic_change: 'Compare this with promotions and weather before changing the rota.'
+};
+
+// What is going right, read from the same numbers as the warnings.
+function strengths(d) {
+    const rows = [],
+        delta = d.deltas ?? {},
+        shelves = d.zones.filter(z => z.kind === 'shelf' && z.visits >= 20),
+        best = [...shelves].sort((a, b) => b.pickup_rate - a.pickup_rate)[0];
+    if (d.flags.pickups_scored && best?.pickup_rate > 0) rows.push(t('{zone} turns the most visits into pickups: {rate}%.', {
+        zone: t(best.name),
+        rate: Math.round(best.pickup_rate * 100)
+    }));
+    if (delta.wait_peak_s < 0) rows.push(t('The peak wait fell {n}% against the previous period.', {
+        n: Math.abs(Math.round(delta.wait_peak_s))
+    }));
+    if (delta.entries > 0) rows.push(t('Footfall rose {n}% against the previous period.', {
+        n: Math.round(delta.entries)
+    }));
+    if (d.kpis.abandoned === 0 && d.flags.queue_configured) rows.push(t('Nobody gave up in the queue.'));
+    return rows;
+}
+
 function renderActions(d) {
     const items = setupSteps(d).concat((d.recommendations ?? []).map(item => {
         const [title, detail, link] = recommendation(item);
@@ -344,13 +374,16 @@ function renderActions(d) {
             link
         };
     }));
-    $('store-actions').innerHTML = items.map(item => `<article class="action ${item.tone}"><div><h3>${esc(item.title)}</h3><p>${esc(item.detail)}</p></div><button class="subtle-button" data-action-view="${esc(item.view)}">${esc(item.link)}</button></article>`).join('') || `<p class="field-note">${esc(t('Nothing stands out in this period.'))}</p>`;
+    const good = strengths(d);
+    $('store-strengths').hidden = !good.length;
+    $('store-strengths').innerHTML = `<h3>${esc(t('What is working'))}</h3><ul>${good.map(line => `<li>${esc(line)}</li>`).join('')}</ul>`;
+    $('store-actions').innerHTML = items.map(item => `<article class="action ${item.tone}"><div><h3>${esc(item.title)}</h3><p>${esc(item.detail)}</p>${PREVENTION[item.code] ? `<p class="action-tip">${esc(t('To avoid this'))}: ${esc(t(PREVENTION[item.code]))}</p>` : ''}</div>${item.view === 'incidents' && d.basis === 'simulated' && state.videos.every(v => !v.source_profile?.simulated) ? '' : `<button class="subtle-button" data-action-view="${esc(item.view)}">${esc(item.link)}</button>`}</article>`).join('') || `<p class="field-note">${esc(t('Nothing stands out in this period.'))}</p>`;
     document.querySelectorAll('[data-action-view]').forEach(b => b.onclick = () => openFromAction(b.dataset.actionView));
 }
 
 async function openFromAction(view) {
     const camera = store.data?.camera;
-    if (view !== 'analytics' && camera && camera.video_id !== state.video?.id && !state.live && !state.offline) await loadVideo(camera.video_id);
+    if (view !== 'analytics' && camera && state.videos.some(v => v.id === camera.video_id) && camera.video_id !== state.video?.id && !state.live && !state.offline) await loadVideo(camera.video_id);
     navigate(view);
 }
 
@@ -586,7 +619,7 @@ async function startDemoBuild() {
         store.demo = await api('/api/ops/demo-store');
         if (store.demo.status === 'ready') {
             clearInterval(store.demoTimer);
-            state.videos = await api('/api/videos');
+            state.videos = playableVideos(await api('/api/videos'));
             await loadStore({
                 print: true
             });
@@ -654,6 +687,92 @@ function renderFlow() {
     renderZoneTable(d);
     renderFunnel(d);
     renderRoutes(d);
+    renderTrend(d);
+    renderQuadrant(d);
+    renderFlowMap(d);
+}
+
+function renderTrend(d) {
+    const rows = d.trend ?? [];
+    $('trend-panel').hidden = rows.length < 3;
+    if ($('trend-panel').hidden) return;
+    $('trend-note').textContent = t('{n} days. The dashed line is the 7-day mean.', {
+        n: rows.length
+    });
+    const every = rows.length > 10 ? 2 : 1,
+        tick = (row, i) => i % every === (rows.length - 1) % every ? dayLabel(row.date, {
+            day: 'numeric',
+            month: 'short'
+        }) : '',
+        label = row => dayLabel(row.date, {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long'
+        }),
+        draw = (id, field, text, options = {}) => Chart.trend($(id), rows.map((row, i) => ({
+            value: row[field],
+            tick: tick(row, i),
+            tipValue: row[field] === null ? '—' : text(row[field]),
+            tipLabel: label(row),
+            selected: row.date >= d.start && row.date <= d.end
+        })), options),
+        people = d.flags.doors_configured ? 'entries' : 'tracks';
+    draw('trend-entries', people, value => number(value), {
+        height: 220,
+        aria: t('Day by day')
+    });
+    draw('trend-wait', 'wait_peak_s', waitText, {
+        height: 150,
+        axis: value => waitText(value),
+        aria: t('Wait at the peak')
+    });
+    draw('trend-queue', 'queue_over_minutes', value => t('{n} min', {
+        n: decimal(value)
+    }), {
+        height: 150,
+        aria: t('Minutes over the queue limit')
+    });
+}
+
+function renderQuadrant(d) {
+    const shelves = d.zones.filter(z => z.kind === 'shelf' && z.visits > 0);
+    $('quadrant-panel').hidden = !d.flags.pickups_scored || shelves.length < 4;
+    if ($('quadrant-panel').hidden) return;
+    Chart.quadrant($('quadrant-chart'), shelves.map(z => ({
+        x: z.visits / d.span_days,
+        y: z.pickup_rate * 100,
+        size: z.dwell_per_visit_s,
+        label: t(z.name),
+        emphasis: true,
+        tipValue: t(z.name),
+        tipLabel: t('{visits} visits a day, {rate}% pickups, {dwell} s a stop', {
+            visits: number(Math.round(z.visits / d.span_days)),
+            rate: decimal(z.pickup_rate * 100),
+            dwell: decimal(z.dwell_per_visit_s)
+        })
+    })), {
+        aria: t('Attention against pickups'),
+        xTitle: t('Visits a day'),
+        axisY: value => Math.round(value) + '%',
+        corners: [t('Few visit, many take'), t('Doing well'), t('Quiet shelves'), t('They stop but do not take')]
+    });
+}
+
+function renderFlowMap(d) {
+    const flows = d.flows ?? [];
+    $('flow-panel').hidden = flows.length < 3;
+    if ($('flow-panel').hidden) return;
+    const names = Object.fromEntries(d.zones.map(z => [z.id, t(z.name)]));
+    Chart.flow($('flow-chart'), flows.map(f => ({
+        from: f.from_id,
+        to: f.to_id,
+        count: f.count,
+        tipValue: number(f.count),
+        tipLabel: `${names[f.from_id] ?? f.from_id} → ${names[f.to_id] ?? f.to_id}`
+    })), {
+        name: id => names[id] ?? id,
+        aria: t('Where people go next')
+    });
 }
 
 function renderZoneTable(d) {

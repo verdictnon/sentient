@@ -77,6 +77,8 @@ def create_app(data_root: Path | None = None, *, detector_factory=None, model_di
     app.include_router(control_room_router(control_room))
     from app.shelves import router as shelf_router
     app.include_router(shelf_router(manager))
+    from app.showcase import router as showcase_router
+    app.include_router(showcase_router())
     app.state.catalog = catalog
     app.state.tracking=manager
     app.include_router(tracking_router(manager))
@@ -105,7 +107,7 @@ def create_app(data_root: Path | None = None, *, detector_factory=None, model_di
 
     @app.get("/api/status")
     def status():
-        return {"status": "ready", "include_generated": catalog.include_generated, "mode": "local_recorded_video", "capture_utc_inferred": False, "isolated_replays": True, "demo": actions.demo_entry, "demo_library": actions.demo_library}
+        return {"status": "ready", "include_generated": catalog.include_generated, "portable_demo": bool(os.environ.get("SENTIENT_PORTABLE_DEMO")), "mode": "local_recorded_video", "capture_utc_inferred": False, "isolated_replays": True, "demo": actions.demo_entry, "demo_library": actions.demo_library}
 
     @app.get("/api/videos")
     def videos():

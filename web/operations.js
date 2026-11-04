@@ -15,6 +15,7 @@ const ops = {
 };
 const viewInfo = {
     wall: ['Control room', 'Cameras, activity and store layout.'],
+    showcase: ['Recognition', 'A real recording with what the model found in it.'],
     work: ['Operations board', 'Assign, track and close store work.'],
     shelves: ['Shelves', 'Stock checks, refill work and shelf activity.'],
     store: ['Store', 'The day on one screen.'],
@@ -29,6 +30,7 @@ const viewInfo = {
 };
 const VIEW_SECTIONS = {
     wall: ['control-room-section'],
+    showcase: ['showcase-section'],
     work: ['work-orders-section'],
     shelves: ['shelf-operations-section'],
     cameras: ['camera-simulation-section'],
@@ -112,6 +114,8 @@ function navigate(name) {
     else if (state.tab !== 'results') tab('results');
     if (name !== 'cameras') $('sim-player').pause();
     if (name === 'wall') openControlRoom().catch(e=>showWallError(e.message));
+    if (name === 'showcase') openShowcase().catch(e => toast(e.message, true));
+    else pauseShowcase();
     if (name === 'work') loadWorkOrders().catch(e => toast(e.message, true));
     if (name === 'shelves') loadShelfOperations().catch(e => toast(e.message, true));
     if (name === 'cameras') loadCameraSimulation().catch(e => toast(e.message, true));
@@ -1070,7 +1074,9 @@ async function bootOperations() {
     });
     if (store.demo.status === 'building') startDemoWatch();
     const cameras = await api('/api/control-room/manifest');
-    navigate(requested && viewInfo[requested] ? requested : cameras.stores.length ? 'wall' : savedRun ? 'overview' : 'store');
+    // The control room runs models live, which the portable demo does not carry.
+    document.querySelector('[data-nav=wall]').hidden = !cameras.stores.length || state.portableDemo;
+    navigate(requested && viewInfo[requested] ? requested : state.portableDemo ? 'store' : cameras.stores.length ? 'wall' : savedRun ? 'overview' : 'store');
     syncOperations();
 }
 

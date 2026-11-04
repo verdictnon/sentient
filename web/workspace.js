@@ -1,4 +1,10 @@
 'use strict';
+
+// Real recordings replace the drawn store clip wherever video appears.
+function playableVideos(videos) {
+    const real = videos.filter(v => !v.source_profile?.simulated);
+    return real.length ? real : videos;
+}
 const $ = id => document.getElementById(id),
     esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({
         '&': '&amp;',
@@ -926,7 +932,7 @@ $('import-form').onsubmit = async e => {
             })
         }
         const v = await api(file ? '/api/videos/upload' : '/api/videos/import', options);
-        state.videos = await api('/api/videos');
+        state.videos = playableVideos(await api('/api/videos'));
         $('library-mode').value = 'all';
         $('library-search').value = '';
         await loadVideo(v.id);
@@ -951,9 +957,10 @@ window.addEventListener('beforeunload', event => {
 async function bootWorkspace() {
     const status = await api('/api/status');
     state.includeGenerated = !!status.include_generated;
-    document.querySelector('[data-nav=cameras]').hidden = !state.includeGenerated;
+    state.portableDemo = !!status.portable_demo;
     state.demo = status.demo_library ?? [];
-    state.videos = await api('/api/videos');
+    state.videos = playableVideos(await api('/api/videos'));
+    document.querySelector('[data-nav=cameras]').hidden = !state.includeGenerated || state.videos.some(v => !v.source_profile?.simulated);
     let id = new URLSearchParams(location.search).get('video');
     if (!state.videos.some(v => v.id === id)) id = [status.demo?.video_id, ...state.demo, ...state.videos.map(v => v.id)].find(key => state.videos.some(v => v.id === key));
     if (id && !state.demo.includes(id) && !state.videos.find(v => v.id === id)?.source_profile?.simulated) $('library-mode').value = 'all';

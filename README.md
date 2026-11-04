@@ -45,6 +45,14 @@ runtime data are kept outside Git. Dependencies are in `requirements-app.txt`.
 - **Store identity:** editable display names without changing footage or history.
 - Light and dark themes, in English and Russian.
 
+## Recognition
+
+The **Recognition** tab plays real store footage with what YOLOv8n-pose and ByteTrack
+found in it. The model ran ahead of time through `scripts/build_showcase.py`, so the
+tab needs no GPU. `scripts/run_demo.py` adds these clips as recordings, and they take
+the place of the drawn store clip. Clips are read from `app/assets/real` and the
+git-ignored `data/real-footage`. The generated store numbers have no video.
+
 ## Real recordings
 
 The detector, pickup model and footage are not in this repository. Where they are

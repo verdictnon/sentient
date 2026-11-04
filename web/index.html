@@ -53,6 +53,7 @@
     <nav class="navigation">
       <button class="nav-item" data-nav="wall"><svg class="icon"><use href="#i-camera"/></svg>Control room</button>
       <button class="nav-item" data-nav="store"><svg class="icon"><use href="#i-store"/></svg>Store</button>
+      <button class="nav-item" data-nav="showcase"><svg class="icon"><use href="#i-camera"/></svg>Recognition</button>
       <button class="nav-item" data-nav="overview"><svg class="icon"><use href="#i-camera"/></svg>Monitor</button>
       <button class="nav-item" data-nav="work"><svg class="icon"><use href="#i-report"/></svg>Operations board</button>
       <button class="nav-item" data-nav="shelves"><svg class="icon"><use href="#i-store"/></svg>Shelves</button>
@@ -150,6 +151,7 @@
           </aside>
           <section class="store-actions" aria-labelledby="actions-title">
             <h2 id="actions-title">What to do next</h2>
+            <div id="store-strengths" class="strengths" hidden></div>
             <div id="store-actions"></div>
           </section>
           <section class="store-grid" aria-labelledby="grid-title">
@@ -191,13 +193,46 @@
         </div>
       </section>
       <!-- Analytics: store level -->
+      <section id="showcase-section" class="view" hidden>
+        <div class="panel-head"><div><h2 id="showcase-title">Store aisle</h2><p id="showcase-note" class="showcase-note"></p></div><select id="showcase-picker" aria-label="Recording" hidden></select></div>
+        <p id="showcase-empty" class="field-note" hidden>No prepared recording. Run scripts/build_showcase.py to add one.</p>
+        <div id="showcase-stage" class="showcase-grid">
+          <div class="showcase-video"><video id="showcase-video" controls muted playsinline preload="auto"></video><canvas id="showcase-canvas"></canvas></div>
+          <aside class="showcase-side">
+            <div class="showcase-stats">
+              <div><span>In frame now</span><b id="showcase-now">0</b></div>
+              <div><span>Found so far</span><b id="showcase-seen">0</b></div>
+              <div><span>Confidence</span><b id="showcase-score">—</b></div>
+            </div>
+            <ul id="showcase-log" class="showcase-log"></ul>
+          </aside>
+        </div>
+        <section class="panel"><div class="panel-head"><h2>People in frame</h2></div><div id="showcase-chart" class="chart"></div></section>
+        <p id="showcase-credit" class="field-note"></p>
+      </section>
       <section id="flow-section" class="view" hidden>
         <div class="kpi-row" id="flow-kpis"></div>
+        <section class="panel" id="trend-panel" hidden>
+          <div class="panel-head"><h2>Day by day</h2><p id="trend-note" class="muted"></p></div>
+          <div id="trend-entries" class="chart trend-main"></div>
+          <div class="split trend-small">
+            <div><h3 class="chart-title">Wait at the peak</h3><div id="trend-wait" class="chart"></div></div>
+            <div><h3 class="chart-title">Minutes over the queue limit</h3><div id="trend-queue" class="chart"></div></div>
+          </div>
+        </section>
         <div class="split">
           <section class="panel"><div class="panel-head"><h2>Footfall by hour</h2><p id="footfall-note" class="muted"></p></div><div id="footfall-chart" class="chart"></div></section>
           <section class="panel"><div class="panel-head"><h2>Queue by hour</h2><p id="queue-note" class="muted"></p></div><div id="queue-chart" class="chart"></div></section>
         </div>
+        <section class="panel" id="quadrant-panel" hidden>
+          <div class="panel-head"><h2>Attention against pickups</h2><p class="muted">Each dot is a shelf. Lines mark the median. A bigger dot means a longer stop.</p></div>
+          <div id="quadrant-chart" class="chart"></div>
+        </section>
         <section class="panel"><div class="panel-head"><h2>Shelf performance</h2><p class="muted">Ranked by how many tracks reached each area. Pickups are model candidates, not sales.</p></div><div id="zone-table" class="table-wrap"></div></section>
+        <section class="panel" id="flow-panel" hidden>
+          <div class="panel-head"><h2>Where people go next</h2><p class="muted">The most common moves between areas. Hover an area to follow it.</p></div>
+          <div id="flow-chart" class="chart"></div>
+        </section>
         <div class="split">
           <section class="panel"><div class="panel-head"><h2>From door to till</h2><p class="muted">How far tracks got through the store.</p></div><div id="funnel-chart"></div></section>
           <section class="panel"><div class="panel-head"><h2>Popular routes</h2><p class="muted">The most common three-stop chains.</p></div><div id="route-list"></div></section>
@@ -562,6 +597,7 @@
 <script src="/shelf-operations.js?v=8"></script>
 <script src="/work-orders.js?v=8"></script>
 <script src="/control-room.js?v=8"></script>
+<script src="/showcase.js?v=8"></script>
 <script src="/operations.js?v=8"></script>
 
 </body>

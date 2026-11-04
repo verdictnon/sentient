@@ -22,7 +22,7 @@ from app.insights import analyse
 from app.journeys import track_journey
 from app.p1.geometry import load_geometry
 from app.p2.persistence import read_database
-from app.rollups import ROLLUP_VERSION, day_rollups, payload as period_payload
+from app.rollups import ROLLUP_VERSION, day_rollups, kpis, merge, payload as period_payload
 from app.simulation import RULES as SIMULATED_RULES
 from app.storage import canonical, stable_id
 
@@ -993,6 +993,7 @@ class Operations:
         data["week_grid"] = (
             period_payload(recent, [], settings)["grid"] if recent else []
         )
+        data["trend"] = daily_trend(days) if mode == "calendar" else []
         data.update(
             store=store,
             stores=stores,
@@ -1241,6 +1242,27 @@ class Operations:
 def rules_for(video, settings):
     """A simulated floor is busier than the clips the default limits were set on."""
     return settings | SIMULATED_RULES if video["source_profile"].get("simulated") else settings
+
+
+def daily_trend(days):
+    """One row per calendar day, so a chart can show the period around the selected one."""
+    by_date = defaultdict(list)
+    for day in days:
+        by_date[day["date"]].append(day)
+    rows = []
+    for date in sorted(by_date):
+        numbers = kpis(merge(by_date[date]))
+        rows.append(
+            dict(
+                date=date,
+                entries=numbers["entries"],
+                tracks=numbers["tracks"],
+                wait_peak_s=numbers["wait_peak_s"],
+                queue_over_minutes=numbers["queue_over_minutes"],
+                needs_review=numbers["needs_review"],
+            )
+        )
+    return rows
 
 
 def separate_simulated(selected, videos, request):

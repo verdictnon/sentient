@@ -6,6 +6,7 @@ recordings; real recordings and their results are left alone.
 """
 
 import argparse
+import os
 from pathlib import Path
 import sys
 import threading
@@ -28,6 +29,7 @@ def main():
     from app.demo_store import seed_store
     from app.p1.server import create_app
 
+    os.environ["SENTIENT_PORTABLE_DEMO"] = "1"
     app = create_app(args.data_dir, include_generated=True)
     operations = app.state.operations
     if args.rebuild or operations.demo_state()["status"] == "absent":
@@ -46,6 +48,9 @@ def main():
     print(f"Sentient is running at {url}. Press Ctrl+C to stop.")
     if not args.no_browser:
         threading.Timer(1.2, webbrowser.open, [url]).start()
+    from app.showcase import import_footage
+
+    import_footage(operations)
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
 
 
