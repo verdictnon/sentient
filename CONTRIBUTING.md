@@ -33,5 +33,6 @@ review databases.
 
 Preserve camera-local identity scope and source-time semantics. Do not present
 tracker predictions as observed dwell, unscored runs as zero pickup candidates,
-or undated footage as a measured store shift. Add focused checks for changes to
-tracking, review persistence, time windows or report generation.
+or undated footage as a measured store shift. Keep simulated data labelled and out
+of anything that describes a real store. Add focused checks for changes to tracking,
+review persistence, time windows or report generation.

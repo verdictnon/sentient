@@ -25,6 +25,7 @@ from app.simulation import RULES as SIMULATED_RULES
 from app.storage import canonical, stable_id
 
 UTC = timezone.utc
+SIMULATED_WARNING = "Simulated data. The demo store generated these numbers; nothing here was measured in a shop."
 DEFAULTS = dict(
     workspace_name="Sentient Retail",
     timezone="Asia/Almaty",
@@ -469,6 +470,7 @@ class Operations:
                 ),
                 dimensions=v["frame_dims_px"],
                 source_kind=v["source_profile"]["source_kind"],
+                simulated=v["source_profile"].get("simulated", False),
                 context=contexts.get(v["id"], {}),
                 runs=by_video[v["id"]],
             )
@@ -498,6 +500,8 @@ class Operations:
         selected = set(request.get("video_ids") or videos.keys())
         if selected - videos.keys():
             raise KeyError("A selected recording no longer exists")
+        selected = separate_simulated(selected, videos, request)
+        simulated = any(videos[i]["source_profile"].get("simulated") for i in selected)
         all_runs = defaultdict(list)
         for run in self.runs():
             all_runs[run["video_id"]].append(run)
@@ -725,9 +729,12 @@ class Operations:
             warnings.append(
                 "No analysed recordings match this scope. This is an empty coverage report, not evidence of zero store activity."
             )
+        if simulated:
+            warnings.insert(0, SIMULATED_WARNING)
         return dict(
             title=request["title"],
             lang=request.get("lang", "en"),
+            simulated=simulated,
             crosscheck=dict(checks),
             scope=request["scope"],
             period=dict(
@@ -848,7 +855,11 @@ class Operations:
             ):
                 if store in rows:
                     rows[store].update(first_day=first, last_day=last, days=count)
-        return sorted(rows.values(), key=lambda r: (not r["analysed"], r["id"]))
+        # A store with a calendar has the most to show, so it opens first.
+        return sorted(
+            rows.values(),
+            key=lambda r: (not (r["dated"] or r.get("days")), not r["analysed"], r["id"]),
+        )
 
     def store_days(self, store):
         """All day rollups for a store. Real and simulated data are never combined."""
@@ -1053,9 +1064,10 @@ class Operations:
                         "observed_dwell_seconds",
                         "pickup_alerts",
                     ]
-                    writer.writerow(cols)
+                    basis = "simulated" if report["simulated"] else "measured"
+                    writer.writerow(cols + ["basis"])
                     for a in report["areas"]:
-                        writer.writerow([safe_csv(a.get(c, "")) for c in cols])
+                        writer.writerow([safe_csv(a.get(c, "")) for c in cols] + [basis])
                 temp.rename(folder)
                 saved = dict(
                     id=key,
@@ -1066,6 +1078,7 @@ class Operations:
                     summary=report["summary"],
                     recordings=len(report["recordings"]),
                     coverage_status=report["coverage_status"],
+                    simulated=report["simulated"],
                 )
                 with self.catalog.connect(write=True) as db:
                     db.execute(
@@ -1174,6 +1187,19 @@ class Operations:
 def rules_for(video, settings):
     """A simulated floor is busier than the clips the default limits were set on."""
     return settings | SIMULATED_RULES if video["source_profile"].get("simulated") else settings
+
+
+def separate_simulated(selected, videos, request):
+    """Simulated and real recordings never share a report."""
+    store = request.get("store_id")
+    chosen = {i for i in selected if not store or videos[i]["store_id"] == store}
+    fake = {i for i in chosen if videos[i]["source_profile"].get("simulated")}
+    if not fake or fake == chosen:
+        return chosen
+    # An explicit choice is a mistake to report; an open scope, like a schedule, means the real shop.
+    if request.get("video_ids"):
+        raise ValueError("Report simulated and real recordings separately.")
+    return chosen - fake
 
 
 def safe_csv(value):

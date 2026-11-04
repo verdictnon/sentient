@@ -388,6 +388,8 @@ def kpis(period):
             busiest = dict(hour=best[0], value=round(best[1][key] / max(1, len(period["days"])), 1), metric=key)
     samples = sum(v["samples"] for v in period["hours"].values())
     review = sum(period["crosscheck"].get(s, 0) for s in NEEDS_REVIEW)
+    # The day-long median hides the rush; the worst well-sampled hour shows it.
+    waits = [v["wait_sum"] / v["wait_count"] for v in hours.values() if v["wait_count"] >= 5]
     pickups = sum(period["crosscheck"].values()) if flags["pickups_scored"] else None
     coverage = sum(v["coverage_s"] for v in period["hours"].values())
     return dict(
@@ -403,6 +405,7 @@ def kpis(period):
         wait_median_s=wait_percentile(period["waits"], 0.5),
         wait_p90_s=wait_percentile(period["waits"], 0.9),
         wait_max_s=period["wait_max"],
+        wait_peak_s=round(max(waits), 1) if waits else None,
         abandoned=totals["abandoned"] if flags["queue_configured"] else None,
         served=totals["served"] if flags["queue_configured"] else None,
         pickups=pickups,
@@ -641,7 +644,7 @@ def payload(days, previous_days, settings):
     earlier = kpis(merge(previous_days)) if previous_days else None
     deltas = {}
     if earlier:
-        for key in ("entries", "tracks", "needs_review", "wait_median_s", "people_peak"):
+        for key in ("entries", "tracks", "needs_review", "wait_peak_s", "people_peak"):
             deltas[key] = change(numbers.get(key), earlier.get(key))
     value = settings.get("avg_item_value") or 0
     return dict(

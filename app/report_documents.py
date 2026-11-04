@@ -46,6 +46,7 @@ RU = {
     "Track counts are summed camera-local IDs, not deduplicated customers.": "Треки это сумма идентификаторов внутри камер, а не уникальные покупатели.",
     "Pickup candidates require review and do not establish purchases, payment or theft.": "Подборы требуют проверки и не подтверждают покупку, оплату или кражу.",
     "One completed run per recording is used; area metrics use the specified saved geometry.": "Для каждой записи берётся один завершённый анализ и указанная разметка.",
+    "Simulated data. The demo store generated these numbers; nothing here was measured in a shop.": "Симуляция. Эти числа сгенерировал демо-магазин, в реальном магазине ничего не измерялось.",
     "Collection report: footage is selected explicitly and is not attributed to a calendar shift or month.": "Отчёт по выбранным записям: они не привязаны к смене или месяцу.",
     "Period selection uses operator-assigned recording times; samples outside the selected interval are excluded.": "Период считается по времени, заданному оператором. Данные вне периода исключены.",
     "No analysed recordings match this scope. This is an empty coverage report, not evidence of zero store activity.": "За этот период нет проанализированных записей. Это отсутствие данных, а не отсутствие покупателей.",
@@ -69,10 +70,12 @@ def duration(value, tr=lambda text: text):
         return tr("Unavailable")
     russian = tr("Unavailable") != "Unavailable"
     if value >= 3600:
-        return f"{value / 3600:.2f} ч" if russian else f"{value / 3600:.2f} h"
-    if value >= 60:
-        return f"{value / 60:.1f} мин" if russian else f"{value / 60:.1f} min"
-    return f"{value:.1f} с" if russian else f"{value:.1f} s"
+        text = f"{value / 3600:.2f} ч" if russian else f"{value / 3600:.2f} h"
+    elif value >= 60:
+        text = f"{value / 60:.1f} мин" if russian else f"{value / 60:.1f} min"
+    else:
+        text = f"{value:.1f} с" if russian else f"{value:.1f} s"
+    return text.replace(".", ",") if russian else text
 
 
 def period(report):
@@ -205,7 +208,7 @@ def build_pdf(report, path):
             name="BrandS",
             fontName=strong,
             fontSize=10,
-            textColor=colors.HexColor("#52715a"),
+            textColor=colors.HexColor("#101c33"),
             spaceAfter=14,
         )
     )
@@ -226,11 +229,21 @@ def build_pdf(report, path):
     )
     styles.add(
         ParagraphStyle(
+            name="FlagS",
+            fontName=strong,
+            fontSize=10,
+            leading=15,
+            textColor=colors.HexColor("#c42a17"),
+            spaceAfter=11,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
             name="MutedS",
             fontName=font,
             fontSize=8,
             leading=12,
-            textColor=colors.HexColor("#61736a"),
+            textColor=colors.HexColor("#5f6c84"),
             spaceAfter=11,
         )
     )
@@ -265,6 +278,10 @@ def build_pdf(report, path):
         para("SENTIENT", "BrandS"),
         para(report["title"], "TitleS"),
         para(period(report), "MutedS"),
+    ]
+    if report.get("simulated"):
+        story.append(para(tr(report["warnings"][0]), "FlagS"))
+    story += [
         para(opening(report)),
         para(traffic_line(report)),
     ]
@@ -286,14 +303,14 @@ def build_pdf(report, path):
         t.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#233d32")),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#101c33")),
                     (
                         "ROWBACKGROUNDS",
                         (0, 1),
                         (-1, -1),
-                        [colors.white, colors.HexColor("#f2f5ef")],
+                        [colors.white, colors.HexColor("#f4f6f9")],
                     ),
-                    ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#d9ded7")),
+                    ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e6eaf0")),
                     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                     ("LEFTPADDING", (0, 0), (-1, -1), 8),
                     ("RIGHTPADDING", (0, 0), (-1, -1), 8),
@@ -347,10 +364,10 @@ def build_pdf(report, path):
 
     def footer(canvas, doc):
         canvas.saveState()
-        canvas.setStrokeColor(colors.HexColor("#d9e0d5"))
+        canvas.setStrokeColor(colors.HexColor("#e6eaf0"))
         canvas.line(72, 47, 540, 47)
         canvas.setFont(font, 7)
-        canvas.setFillColor(colors.HexColor("#6b7b71"))
+        canvas.setFillColor(colors.HexColor("#5f6c84"))
         canvas.drawString(72, 34, "SENTIENT")
         canvas.drawRightString(540, 34, f"{doc.page}")
         canvas.restoreState()
@@ -396,13 +413,17 @@ def build_docx(report, path):
     for name in ("Heading 1", "Heading 2"):
         style = doc.styles[name]
         style.font.name = "Calibri"
-        style.font.color.rgb = RGBColor.from_string("233D32")
+        style.font.color.rgb = RGBColor.from_string("101C33")
         style.paragraph_format.space_before = Pt(16)
         style.paragraph_format.space_after = Pt(8)
     tr = translator(report)
     doc.add_paragraph("SENTIENT").runs[0].font.size = Pt(9)
     doc.add_paragraph(report["title"], style="Title")
     doc.add_paragraph(period(report))
+    if report.get("simulated"):
+        flag = doc.add_paragraph().add_run(tr(report["warnings"][0]))
+        flag.bold = True
+        flag.font.color.rgb = RGBColor.from_string("C42A17")
     doc.add_paragraph(opening(report))
     doc.add_paragraph(traffic_line(report))
     if report.get("notes"):
@@ -429,7 +450,7 @@ def build_docx(report, path):
                 shading = OxmlElement("w:shd")
                 shading.set(
                     qn("w:fill"),
-                    "233D32" if i == 0 else "F2F5EF" if i % 2 == 0 else "FFFFFF",
+                    "101C33" if i == 0 else "F4F6F9" if i % 2 == 0 else "FFFFFF",
                 )
                 props.append(shading)
                 borders = OxmlElement("w:tcBorders")
@@ -437,7 +458,7 @@ def build_docx(report, path):
                     el = OxmlElement("w:" + edge)
                     el.set(qn("w:val"), "single")
                     el.set(qn("w:sz"), "4")
-                    el.set(qn("w:color"), "D9D9D9")
+                    el.set(qn("w:color"), "E6EAF0")
                     borders.append(el)
                 props.append(borders)
                 margins = OxmlElement("w:tcMar")
@@ -454,7 +475,7 @@ def build_docx(report, path):
                         run.font.size = Pt(9)
                         run.bold = i == 0
                         run.font.color.rgb = (
-                            RGBColor(255, 255, 255) if i == 0 else RGBColor(30, 45, 36)
+                            RGBColor(255, 255, 255) if i == 0 else RGBColor(16, 28, 51)
                         )
             if i == 0:
                 repeat = OxmlElement("w:tblHeader")
@@ -504,7 +525,7 @@ Z_TEXT = {
     "en": dict(
         title="FLOOR Z-REPORT", simulated="SIMULATED, NOT MEASURED", undated="UNDATED RECORDINGS",
         came_in="CAME IN", left="LEFT", most="MOST IN STORE", busiest="BUSIEST HOUR", stay="TIME IN STORE",
-        queue="QUEUE", longest="LONGEST LINE", over="OVER THE LIMIT", typical="TYPICAL WAIT", worst="WORST 10% WAIT",
+        queue="QUEUE", longest="LONGEST LINE", over="OVER THE LIMIT", peak_wait="WAIT AT THE PEAK",
         gave_up="GAVE UP WAITING", check="PICKUPS AGAINST THE TILL", pickups="PICKUP CANDIDATES",
         reached="REACHED A TILL", passed="LEFT WITHOUT A TILL", lost="TRACK LOST", value="VALUE TO REVIEW",
         todo="WHAT TO DO", minutes="MIN", hours="H",
@@ -513,7 +534,7 @@ Z_TEXT = {
     "ru": dict(
         title="Z-ОТЧЁТ ЗАЛА", simulated="СИМУЛЯЦИЯ, НЕ ИЗМЕРЕНИЯ", undated="ЗАПИСИ БЕЗ ДАТЫ",
         came_in="ВОШЛО", left="ВЫШЛО", most="МАКСИМУМ В ЗАЛЕ", busiest="ЧАС ПИК", stay="ВРЕМЯ В ЗАЛЕ",
-        queue="ОЧЕРЕДЬ", longest="САМАЯ ДЛИННАЯ", over="ВЫШЕ ЛИМИТА", typical="ОБЫЧНО ЖДУТ", worst="ХУДШИЕ 10%",
+        queue="ОЧЕРЕДЬ", longest="САМАЯ ДЛИННАЯ", over="ВЫШЕ ЛИМИТА", peak_wait="ЖДУТ В ЧАС ПИК",
         gave_up="НЕ ДОЖДАЛИСЬ", check="СВЕРКА С КАССОЙ", pickups="ПОДБОРЫ",
         reached="ДОШЁЛ ДО КАССЫ", passed="МИМО КАССЫ", lost="ТРЕК ОБОРВАЛСЯ", value="НА ПРОВЕРКЕ",
         todo="ЧТО СДЕЛАТЬ", minutes="МИН", hours="Ч",
@@ -617,14 +638,14 @@ def build_z_report(data, lang, target):
     line(text["most"], grouped(k["people_peak"]))
     busiest = k["busiest_hour"]
     line(text["busiest"], f"{busiest['hour']:02d}:00" if busiest else "—")
-    line(text["stay"], f"{k['visit_minutes']} {text['minutes']}" if k["visit_minutes"] is not None else "—")
+    stay = str(k["visit_minutes"]).replace(".", ",") if lang == "ru" else k["visit_minutes"]
+    line(text["stay"], f"{stay} {text['minutes']}" if k["visit_minutes"] is not None else "—")
     if k["queue_peak"] is not None:
         rule()
         heading(text["queue"])
         line(text["longest"], grouped(k["queue_peak"]))
         line(text["over"], spent(k["queue_over_minutes"], text))
-        line(text["typical"], wait_clock(k["wait_median_s"]))
-        line(text["worst"], wait_clock(k["wait_p90_s"]))
+        line(text["peak_wait"], wait_clock(k["wait_peak_s"]))
         line(text["gave_up"], grouped(k["abandoned"]))
     if k["pickups"] is not None:
         rule()

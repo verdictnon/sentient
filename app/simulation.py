@@ -33,7 +33,7 @@ MODEL_ID = "simulated-pickup-candidates/1"
 THRESHOLD = 0.97
 # A full shop keeps people at shelves and in line for longer than the short
 # research clips the workspace defaults were chosen for.
-RULES = dict(dwell_limit_s=90, crowd_limit=7, queue_limit=4)
+RULES = dict(dwell_limit_s=90, crowd_limit=7, queue_limit=4, avg_item_value=1800)
 
 # Floor polygons follow the same rule as a real camera: the strip where a person
 # stands, not the shelf itself. Names stay in English and are translated in the UI.
@@ -375,8 +375,8 @@ def finish_shopping(shoppers, rng, day_kind):
                     break
             candidates.append((start, index))
         start, index = min(candidates)
-        patience = rng.uniform(300, 640)
-        if start - arrive > patience and rng.random() < 0.1:
+        patience = rng.uniform(150, 420)
+        if start - arrive > patience and rng.random() < 0.2:
             shopper.scenario = "abandoned"
             shopper.queue_enter = None
             shopper.walk((470 + shopper.offset[0], 620), rng.uniform(40, 120))

@@ -359,8 +359,19 @@ $('open-investigations').onclick = () => navigate('incidents');
 
 const REVIEW_STATUSES = ['left_without_checkout', 'lost_before_checkout'];
 
+function renderCaseScope(totals) {
+    const whole = store.data?.kpis?.needs_review,
+        sameStore = state.video?.store_id === store.id,
+        differs = sameStore && whole !== null && whole !== undefined && whole !== totals?.needs_review;
+    $('case-scope').hidden = !differs;
+    if (differs) $('case-scope').textContent = t('These cases come from one saved run, {time} of footage. Store totals cover the whole period.', {
+        time: clockTime(state.video.indexed_span_ms)
+    });
+}
+
 function renderCaseSummary() {
     const totals = ops.data?.crosscheck?.totals;
+    renderCaseScope(totals);
     if (!totals || !ops.data.incidents.some(e => e.kind === 'pickup')) {
         $('case-summary').hidden = true;
         return
@@ -442,7 +453,7 @@ async function openIncident(id) {
         run_key: currentRun()
     };
     $('incident-title').textContent = e.crosscheck ? outcomeLabel(e.crosscheck.status) : incidentTitle(e);
-    $('incident-meta').textContent = [ops.data.video.camera_id, clockTime(e.media_ms), e.track_id ? shortTrack(e.track_id) : t('Area signal'), e.score !== undefined ? t('model score {n}%', {
+    $('incident-meta').textContent = [ops.data.video.camera_id, clockTime(e.media_ms), e.track_id ? shortTrack(e.track_id) : t('Area signal'), e.score !== undefined ? t(state.video?.source_profile?.simulated ? 'simulated score {n}%' : 'model score {n}%', {
         n: (e.score * 100).toFixed(1)
     }) : null].filter(Boolean).join(', ');
     $('incident-evidence').innerHTML = e.track_id ? `<video id="incident-video" src="${clipURL(e.track_id,e.media_ms)}" poster="${evidenceURL(e.track_id,e.media_ms)}" controls muted autoplay playsinline></video>` : `<p>${esc(t(e.kind==='dwell'?'Extended observed presence in {name}. Inspect the recording before recording your decision.':'Configured occupancy threshold exceeded in {name}. Inspect the recording before recording your decision.',{name:t(e.name)}))}</p>`;
@@ -797,14 +808,22 @@ function fillReports() {
         $('report-store').innerHTML = storeHTML;
         $('report-store').value = store_
     }
-    $('report-sources').innerHTML = recordings.map(v => `<label class="report-source"><input data-report-source type="checkbox" value="${v.id}" ${initial?state.demo.includes(v.id)||v.id===state.video?.id?'checked':'':previously.has(v.id)?'checked':''}><span>${esc(v.context.label||title({display_name:v.name}))}<small>${esc([v.camera_id,t(v.runs.length?'Analysis available':'No completed run'),v.context.started_at_utc?new Date(v.context.started_at_utc).toLocaleString(locale()):t('Undated')].join(', '))}</small></span></label>`).join('') || `<p class="field-note">${esc(t('Analyze a recording to add it to reporting.'))}</p>`;
+    $('report-sources').innerHTML = recordings.map(v => `<label class="report-source"><input data-report-source type="checkbox" value="${v.id}" ${initial?v.simulated===reportBasis()&&(state.demo.includes(v.id)||v.id===state.video?.id)?'checked':'':previously.has(v.id)?'checked':''}><span>${esc(v.context.label||title({display_name:v.name}))}<small>${esc([v.camera_id,t(v.runs.length?'Analysis available':'No completed run'),v.context.started_at_utc?new Date(v.context.started_at_utc).toLocaleString(locale()):t('Undated')].join(', '))}</small></span></label>`).join('') || `<p class="field-note">${esc(t('Analyze a recording to add it to reporting.'))}</p>`;
     $('report-zone-note').textContent = t('Calendar timezone: {zone}. Undated footage appears only in selected-recording reports.', {
         zone: ops.workspace.settings.timezone
     });
-    $('report-library').innerHTML = ops.workspace.reports.map(r => `<article class="report-file"><h3>${esc(r.title)}</h3><p>${esc(new Date(r.created_at).toLocaleString(locale()))}, ${esc(t('{n} recordings',{n:r.recordings}))}</p><p>${esc(t('{a} local track IDs, {b} candidates',{a:r.summary.tracks,b:r.summary.pickups??t('unscored')}))}${r.coverage_status==='no_matching_recordings'?esc(', '+t('no matching coverage')):''}</p><div class="report-downloads">${['pdf','docx','csv','json'].map(f=>`<a href="/api/ops/reports/${r.id}/${f}" download>${f.toUpperCase()}</a>`).join('')}</div></article>`).join('') || empty('Your report library is empty', 'Generate a report and it stays here.');
+    $('report-library').innerHTML = ops.workspace.reports.map(r => `<article class="report-file"><h3>${esc(r.title)}</h3>${r.simulated?`<p class="report-flag">${esc(t('Simulated'))}</p>`:''}<p>${esc(new Date(r.created_at).toLocaleString(locale()))}, ${esc(t('{n} recordings',{n:r.recordings}))}</p><p>${esc(t('{a} local track IDs, {b} candidates',{a:r.summary.tracks,b:r.summary.pickups??t('unscored')}))}${r.coverage_status==='no_matching_recordings'?esc(', '+t('no matching coverage')):''}</p><div class="report-downloads">${['pdf','docx','csv','json'].map(f=>`<a href="/api/ops/reports/${r.id}/${f}" download>${f.toUpperCase()}</a>`).join('')}</div></article>`).join('') || empty('Your report library is empty', 'Generate a report and it stays here.');
 }
 $('report-store').onchange = fillReports;
-$('report-select-all').onclick = () => document.querySelectorAll('[data-report-source]').forEach(e => e.checked = !!ops.workspace.recordings.find(v => v.id === e.value)?.runs.length);
+$('report-select-all').onclick = () => document.querySelectorAll('[data-report-source]').forEach(e => {
+    const recording = ops.workspace.recordings.find(v => v.id === e.value);
+    e.checked = !!recording?.runs.length && recording.simulated === reportBasis();
+});
+
+// Simulated and real recordings are reported separately, so a selection follows the open camera.
+function reportBasis() {
+    return !!state.video?.source_profile?.simulated;
+}
 
 function zonedInput(date, time, tz) {
     const base = new Date(date + 'T' + time + ':00Z');
@@ -1115,7 +1134,7 @@ function fillRunSelector() {
         key,
         kind: key.split(':')[0]
     });
-    const html = `<option value="">${esc(t('Choose a completed run…'))}</option>` + rows.map(r => `<option value="${esc(r.key)}">${esc(t(r.kind==='offline'?'Full analysis':r.kind==='track'?'Person tracking':'Live recording run'))}${r.created_at?', '+esc(new Date(r.created_at).toLocaleString(locale())):''}</option>`).join('');
+    const html = `<option value="">${esc(t('Choose a completed run…'))}</option>` + rows.map(r => `<option value="${esc(r.key)}">${esc(t(r.kind==='offline'?'Full analysis':r.kind==='track'?'Person tracking':'Live recording run'))}${r.created_at?', '+esc(new Date(r.created_at).toLocaleString(locale(),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})):''}</option>`).join('');
     if ($('analysis-run').innerHTML !== html) $('analysis-run').innerHTML = html;
     $('analysis-run').value = key ?? '';
 }

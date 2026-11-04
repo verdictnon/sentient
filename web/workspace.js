@@ -123,6 +123,7 @@ function library() {
     const query = $('library-search').value.trim().toLowerCase();
     const rows = ($('library-mode').value === 'demo' ? state.videos.filter(v => state.demo.includes(v.id) || v.source_profile?.simulated) : state.videos).filter(v => (title(v) + ' ' + v.camera_id).toLowerCase().includes(query));
     $('library-count').textContent = rows.length;
+    document.body.classList.toggle('single-recording', state.videos.length < 2);
     $('library').innerHTML = rows.map(v => `<button class="asset ${v.id===state.video?.id?'selected':''}" data-video="${v.id}" aria-pressed="${v.id===state.video?.id}" title="${esc(title(v))}"><img class="asset-thumb" src="/api/videos/${v.id}/frame/0" loading="lazy" alt=""><span class="asset-copy"><b>${esc(title(v).replace(/^V[0-9]+ /,''))}</b><small>${((v.declared_duration_ms??v.indexed_span_ms)/1000).toFixed(0)} ${esc(t('s'))}, ${esc(v.camera_id)}</small></span></button>`).join('') || `<p class="field-note">${esc(t('No recordings match your search.'))}</p>`;
     document.querySelectorAll('[data-video]').forEach(b => b.onclick = guard(async () => {
         await loadVideo(b.dataset.video);
@@ -228,7 +229,9 @@ async function loadVideo(id) {
         await showOffline(completed, generation);
         $('run-status').textContent = t('Saved full-video results');
     } else {
-        const saved = histories.find(j => ['completed', 'stopped'].includes(j.status) && j.processed_frames > 0);
+        // A finished run reopens ahead of a newer one that someone stopped halfway.
+        const usable = histories.filter(j => ['completed', 'stopped'].includes(j.status) && j.processed_frames > 0),
+            saved = usable.find(j => j.status === 'completed') ?? usable[0];
         if (saved) {
             await showSavedLive(saved.id, generation);
             return;

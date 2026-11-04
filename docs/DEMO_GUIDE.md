@@ -1,11 +1,15 @@
 # Sentient demo
 
-The v2 interface adds Track explorer, Investigations, Report centre and System
-views. See docs/OPERATIONS.md for tracking tools, reviews, calendar reports and
-automatic schedules. The inference and original geometry workflows below remain
-available.
+For a laptop with no models or footage, run `./run_demo.sh` or `run_demo.bat` and
+see [the pitch run-through](PITCH_DEMO.md). The simulated store is described in
+docs/OPERATIONS.md.
 
-Start from the project root:
+The interface adds Store, Track explorer, Investigations, Report centre and System
+views. See docs/OPERATIONS.md for the store view, cross-checks, tracking tools,
+reviews, calendar reports and automatic schedules. The inference and original
+geometry workflows below remain available.
+
+With the installed models and recordings, start from the project root:
 
     .venv-app/bin/python scripts/start_local_workspace.py
 
@@ -41,9 +45,10 @@ offline analysis; a queued offline job waits until live analysis ends.
 
 ## Explore the dashboard
 
-- Search recordings in the sidebar. **Monitor**, **Analytics**, **Camera setup**
-  and **Demo guide** navigate the workspace. On mobile, open the sidebar with
-  the top-left menu button.
+- Find recordings in the strip under the camera, or press Ctrl K to jump to a
+  view or recording. **Store**, **Monitor**, **Analytics**, **Camera setup** and
+  **Demo guide** navigate the workspace. Keys 1 to 6 switch views. On mobile, open
+  the sidebar with the top-left menu button.
 - Summary cards show unique observed camera-local tracks, pickup candidates,
   observed dwell divided by area visits, and mapped polygons. A dash means no
   result or an unavailable measure. Tracks are not verified unique customers.
@@ -81,8 +86,9 @@ without another model run. Import/export JSON preserves names, points and IDs.
 - **Floor area:** aisle, browsing or other named floor region.
 - **Door / entrance / exit line:** two endpoints across a visible doorway. Its
   arrow points to the positive side. A negative-to-positive crossing adds a
-  positive count. Reverse if the direction is wrong. Counts are local to this
-  camera, not unique customers across cameras.
+  positive count. Reverse if the direction is wrong, and declare whether the arrow
+  points into or out of the store to count entries and exits. Counts are local to
+  this camera, not unique customers across cameras.
 - **Checkout area:** the floor occupied by customers at the cashier. Presence
   alone does not establish payment or completed service.
 - **Exit area:** a visible exit approach area. It reports presence/visits; use

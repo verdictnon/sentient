@@ -8,6 +8,7 @@ import shutil
 from zoneinfo import ZoneInfo
 
 from app import simulation as sim
+from app.journeys import NEEDS_REVIEW
 from app.p1.geometry import save_geometry
 from app.p1.media import register
 from app.storage import canonical
@@ -132,5 +133,11 @@ def seed_store(ops, days=14, today=None, progress=None):
         row = db.execute("SELECT payload FROM ops_context WHERE video_id=?", (video["id"],)).fetchone()
         context = json.loads(row[0]) | dict(time_basis="simulated")
         db.execute("UPDATE ops_context SET payload=? WHERE video_id=?", (canonical(context), video["id"]))
+    # Opening a case should not leave anyone watching a spinner in front of a room.
+    report("clips", 0.98)
+    run = "live:" + key
+    for event in ops.insight(run)[0]["incidents"]:
+        if event.get("crosscheck", {}).get("status") in NEEDS_REVIEW:
+            ops.evidence_clip(run, event["track_id"], event["media_ms"])
     report("done", 1.0)
-    return dict(video_id=video["id"], run_key="live:" + key, days=len(results))
+    return dict(video_id=video["id"], run_key=run, days=len(results))

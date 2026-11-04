@@ -3,10 +3,85 @@
 The existing detector, tracker, local video catalogue and action model power the
 v2 workspace. Start with `.venv-app/bin/python scripts/start_local_workspace.py`
 and open http://127.0.0.1:8766. No frontend build or external service is needed.
+Without models or footage, `./run_demo.sh` or `run_demo.bat` opens the simulated store.
+
+## Store view
+
+**Store** opens first. It shows one store for one day or seven days: a summary
+sentence, the Z-report, a floor map, the week grid and what to do next. Stores with
+dated recordings open before undated ones. A store switcher appears with two or more.
+
+`app/rollups.py` cuts each recording into local-time hours, using the same single
+run per recording that reports use. A recording that crosses midnight splits at
+midnight. Undated recordings have no hours, so the store shows totals and asks for
+a start time. Unknown stays unknown: without declared door lines **Came in** is a
+dash, without a queue mapping the queue block disappears, and an unscored run shows
+no pickup numbers.
+
+A doorway line must declare what crossing it means. In **Camera setup**, set whether
+the arrow points into or out of the store. Until then the line counts crossings
+only. A person who returns is counted again.
+
+**Wait at the peak** is the highest hourly mean wait among hours with at least five
+observed waits. **Time in store** is the mean observed time per track. Tracks
+fragment, so it can run shorter than a real visit.
+
+**What to do next** comes from fixed rules, and each finding shows its numbers:
+
+| Finding | Rule |
+| --- | --- |
+| Pickups need a look | A candidate left without a till, or its track ended first |
+| Open a second till | An hour stayed over the queue limit for at least 5 minutes a day |
+| People stop but rarely take | A shelf has dwell above 1.25× the median and a pickup rate below 0.7× the median, with at least 3 shelves of 20+ visits |
+| Few people reach a shelf | Its reach is under 35% of the busiest shelf, with the same minimums |
+| Staff for an hour | The busiest hour of the period |
+| Footfall up or down | A change of at least 3% against the previous period of the same length |
+
+A real store that is not ready lists its missing steps here instead.
+
+## Pickup cross-check
+
+`app/journeys.py` follows each pickup candidate along its camera-local track:
+
+| Status | Meaning |
+| --- | --- |
+| Reached a till | The track entered a checkout area after the pickup began |
+| Left without a till | The track left through a door or exit area with no checkout visit |
+| Track lost | The track ended more than 3 seconds before the run did, with no checkout visit |
+| Still in view | The run ended while the track was visible |
+| Checkout not mapped | The camera has no checkout area, so nothing can be concluded |
+| Unavailable | The source has no usable physical time |
+
+**Left without a till** and **Track lost** need review. Tracks fragment, and a
+checkout area shows presence, not payment. No till or POS data is used. **Value to review**
+multiplies pickups left without a till by the average item value in System & models,
+and is hidden when that value is zero. It sizes the review work and does not measure
+a loss.
+
+The funnel is nested over tracks: observed, spent at least 8 seconds at a shelf, then
+of those, reached a till. Door entries sit above it when doors are declared. Pickup
+candidates sit outside it because a model miss is not a shopper who took nothing.
+Routes skip shelf and floor areas visited for under 6 seconds. A track that leaves the
+queue area without reaching a till counts as gave up.
+
+## Simulated store
+
+`app/simulation.py` runs a deterministic crowd of shoppers over a fixed floor plan.
+`app/demo_store.py` stores 14 days of rollups and one two-minute clip from the last
+evening. Their tracks pass through the same `analyse()` and `day_rollups()` as real
+runs. No detector or action model runs, and **Start simulated live run** replays
+the clip at source pace.
+
+Simulated data is labelled in its source profile, its time basis and its rollups, on
+the hazard tape, in the video stamp and on the Z-report. Report centre documents carry
+a banner, a `simulated` field and a `basis` column. Simulated and real recordings
+never share a rollup. An explicit report selection that mixes them is refused, and an
+open scope such as a schedule covers only the real ones. Rebuilding replaces only the
+simulated store.
 
 ## Monitor and tracking
 
-Select a recording from the searchable sidebar. The saved-analysis selector
+Select a recording from the searchable strip under the camera. The saved-analysis selector
 switches between full analyses, person-tracking runs and saved live runs. The
 selected view and saved run are retained in the page URL.
 
@@ -137,11 +212,18 @@ those missing data and model capabilities.
 ## Source layout
 
 - `app/insights.py`: observed-track, area, crossing and signal reductions.
+- `app/journeys.py`: footfall, routes, funnel, queue outcomes and the pickup cross-check.
+- `app/rollups.py`: hourly store rollups, KPIs and recommendations.
+- `app/simulation.py`, `app/demo_store.py`: the simulated store.
 - `app/operations.py`: run discovery, review/context persistence, reports and scheduler.
 - `app/report_documents.py`: PDF and Word rendering from immutable report snapshots.
+- `web/store.js`: the Store view and the store half of Analytics.
+- `web/charts.js`, `web/i18n.js`, `web/i18n.ru.js`: charts and translations.
 - `web/operations.js`: investigation, analytics, reporting, context and system views.
 - `web/workspace.js` and `web/dashboard.js`: the retained playback/inference/editor UI.
 - `tests/p1/test_operations.py`: analytics, periods, reviews, reports and scheduler checks.
+- `tests/p1/test_journeys.py`, `test_store_overview.py`, `test_interface_language.py`:
+  cross-checks, rollups, the simulated store and translation coverage.
 
 Existing catalogues and inference outputs are preserved. New operations state
 uses additive `ops_*` SQLite tables. Generated reports are under

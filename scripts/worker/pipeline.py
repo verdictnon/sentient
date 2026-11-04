@@ -6,8 +6,12 @@ import hashlib
 import json
 import math
 from pathlib import Path
-import resource
 import time
+
+try:
+    import resource
+except ImportError:  # Windows has no resource module.
+    resource = None
 
 import av
 import numpy as np
@@ -17,6 +21,11 @@ from .contracts import Validator, canonical, track_key
 from .model import CLASSES, sha256
 
 VERSION = 'sentient.action.worker/1'
+
+
+def peak_rss_mib():
+    """Peak process memory where the platform reports it, otherwise None."""
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024 if resource else None
 
 
 def digest(value):
@@ -276,7 +285,7 @@ def infer_video(video, index, plans, runtime, policy, cancel_check=None, progres
         output.extend([plan['candidate'],results[number]])
     return output,[details[i] for i in range(len(plans))],{
         'inference_and_decode_seconds':time.monotonic()-started,'peak_active_windows':peak_active,
-        'peak_cuda_allocated_mib':runtime.memory_mib(),'process_peak_rss_mib':resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024,
+        'peak_cuda_allocated_mib':runtime.memory_mib(),'process_peak_rss_mib':peak_rss_mib(),
         'scored_windows':sum(d['status']=='scored' for d in details.values()),
         'abstained_windows':len(plans),'confirmed_actions':0,'model_id':model_id,
     }

@@ -75,6 +75,7 @@ async function loadStore(options = {}) {
         store.heatKey = '';
         if (options.print) store.printed = false;
         renderStore();
+        renderCaseScope(ops.data?.crosscheck?.totals);
         if (ops.view === 'analytics') renderFlow();
     } finally {
         store.loading = false;
@@ -158,6 +159,9 @@ function waitText(seconds) {
 function narrative(d) {
     const k = d.kpis;
     if (d.mode === 'collection') {
+        if (!d.store.analysed) return t('{n} recordings added. Run the analysis to see this store.', {
+            n: mark(number(d.store.recordings))
+        });
         const parts = [t('{n} tracks across {m} analysed recordings.', {
             n: mark(number(k.tracks)),
             m: mark(d.store.analysed)
@@ -165,7 +169,6 @@ function narrative(d) {
         if (k.pickups !== null) parts.push(t('{n} pickup candidates to review.', {
             n: mark(number(k.pickups))
         }));
-        parts.push(t('Set recording start times to see hours and days.'));
         return parts.join(' ');
     }
     const when = d.span_days > 1 ? `${dayLabel(d.start,{day:'numeric',month:'short'})}–${dayLabel(d.end,{day:'numeric',month:'short'})}` : capitalise(dayLabel(d.end, {
@@ -245,7 +248,7 @@ function renderReceipt(d) {
     const money = d.value_at_risk?.amount === null || d.value_at_risk?.amount === undefined ? null : number(d.value_at_risk.amount) + ' ' + currencySign(d.settings.currency);
     let html = `<header><b class="r-store">${esc(storeName(d.store))}</b><span>${esc(t('Floor Z-report'))}</span><span>${esc(when)}</span>${d.basis==='simulated'?`<span class="r-flag">${esc(t('SIMULATED'))}</span>`:''}</header>`;
     html += `<section>${receiptLine(t('Came in'),number(k.entries))}${receiptLine(t('Left'),number(k.exits))}${receiptLine(t('Most in store'),number(k.people_peak))}${receiptLine(t('Busiest hour'),peak)}${receiptLine(t('Time in store'),k.visit_minutes===null?null:t('{n} min',{n:decimal(k.visit_minutes)}))}</section>`;
-    if (k.queue_peak !== null) html += `<section><h3>${esc(t('Queue'))}</h3>${receiptLine(t('Longest line'),number(k.queue_peak))}${receiptLine(t('Over the limit'),durationText(k.queue_over_minutes))}${receiptLine(t('Typical wait'),waitText(k.wait_median_s))}${receiptLine(t('Worst 10% wait'),waitText(k.wait_p90_s))}${receiptLine(t('Gave up waiting'),number(k.abandoned))}</section>`;
+    if (k.queue_peak !== null) html += `<section><h3>${esc(t('Queue'))}</h3>${receiptLine(t('Longest line'),number(k.queue_peak))}${receiptLine(t('Over the limit'),durationText(k.queue_over_minutes))}${receiptLine(t('Wait at the peak'),waitText(k.wait_peak_s))}${receiptLine(t('Gave up waiting'),number(k.abandoned))}</section>`;
     if (k.pickups !== null) html += `<section><h3>${esc(t('Pickups against the till'))}</h3>${receiptLine(t('Pickup candidates'),number(k.pickups))}${receiptLine(t('Reached a till'),number(k.reached_checkout))}${receiptLine(t('Left without paying?'),number(k.left_without_checkout),true)}${receiptLine(t('Track lost'),number(k.lost_before_checkout))}</section>`;
     if (money) html += `<section class="r-total">${receiptLine(t('Value to review'),money,true)}<small>${esc(t('{n} × average item {v}',{n:number(k.left_without_checkout),v:number(d.value_at_risk.item_value)+' '+currencySign(d.settings.currency)}))}</small></section>`;
     html += `<footer>${code39(reportNumber(d))}<span>${esc(reportNumber(d))}</span><small>${esc(t('Review candidates before acting. A pickup without a till is a reason to look, not proof of theft.'))}</small></footer>`;
@@ -269,11 +272,12 @@ function recommendation(item) {
             return [t('Open a second till {a}–{b}', {
                 a: hourLabel(p.start),
                 b: hourLabel(p.end)
-            }), t('The line stayed above {limit} people for {minutes} min in that window. {abandoned} people gave up and left.', {
+            }), [t('The line stayed above {limit} people for {minutes} min in that window.', {
                 limit: p.limit,
-                minutes: number(p.minutes),
-                abandoned: number(p.abandoned ?? 0)
-            }), t('See the queue')];
+                minutes: number(p.minutes)
+            }), p.abandoned ? t('{n} people gave up and left.', {
+                n: number(p.abandoned)
+            }) : ''].join(' ').trim(), t('See the queue')];
         case 'dwell_no_pickup':
             return [t('People stop at {zone} but rarely take anything', {
                 zone: area
@@ -297,30 +301,52 @@ function recommendation(item) {
             }), t('See footfall')];
         case 'traffic_change':
             return [p.delta > 0 ? t('Footfall up {n}%', {
-                n: Math.abs(p.delta)
+                n: decimal(Math.abs(p.delta))
             }) : t('Footfall down {n}%', {
-                n: Math.abs(p.delta)
+                n: decimal(Math.abs(p.delta))
             }), t('Compared with the previous period of the same length.'), t('See footfall')];
     }
     return [item.code, '', ''];
 }
 
+// What a real store still needs before its numbers can exist. Simulated stores are complete.
+function setupSteps(d) {
+    if (d.basis === 'simulated') return [];
+    const steps = [];
+    if (!d.camera?.shapes?.length) steps.push(setupStep('geometry', t('Map this camera'), t('Draw the doors, shelves, queue and checkout. Every count here depends on them.'), t('Camera setup')));
+    if (!d.store.analysed) steps.push(setupStep('overview', t('Analyse a recording'), t('It runs on this computer. If the detector is missing, System & models lists what to install.'), t('Open cameras')));
+    if (d.mode !== 'calendar') steps.push(setupStep('geometry', t('Say when it was filmed'), t('Set recording start times to see hours and days.'), t('Camera setup')));
+    return steps;
+}
+
+function setupStep(view, title, detail, link) {
+    return {
+        view,
+        title,
+        detail,
+        link,
+        tone: 'action'
+    };
+}
+
 function renderActions(d) {
-    const items = d.recommendations ?? [];
-    $('store-actions').innerHTML = items.map(item => {
+    const items = setupSteps(d).concat((d.recommendations ?? []).map(item => {
         const [title, detail, link] = recommendation(item);
-        return `<article class="action ${item.tone}"><div><h3>${esc(title)}</h3><p>${esc(detail)}</p></div><button class="subtle-button" data-action-view="${esc(item.view)}">${esc(link)}</button></article>`;
-    }).join('') || `<p class="field-note">${esc(t('Nothing stands out in this period.'))}</p>`;
+        return {
+            ...item,
+            title,
+            detail,
+            link
+        };
+    }));
+    $('store-actions').innerHTML = items.map(item => `<article class="action ${item.tone}"><div><h3>${esc(item.title)}</h3><p>${esc(item.detail)}</p></div><button class="subtle-button" data-action-view="${esc(item.view)}">${esc(item.link)}</button></article>`).join('') || `<p class="field-note">${esc(t('Nothing stands out in this period.'))}</p>`;
     document.querySelectorAll('[data-action-view]').forEach(b => b.onclick = () => openFromAction(b.dataset.actionView));
 }
 
 async function openFromAction(view) {
-    if (view === 'incidents' && d_isSimulated() && !state.video?.source_profile?.simulated) await showDemoCamera();
+    const camera = store.data?.camera;
+    if (view !== 'analytics' && camera && camera.video_id !== state.video?.id && !state.live && !state.offline) await loadVideo(camera.video_id);
     navigate(view);
-}
-
-function d_isSimulated() {
-    return store.data?.basis === 'simulated';
 }
 
 async function showDemoCamera() {
@@ -376,11 +402,7 @@ function renderMap() {
     document.querySelectorAll('[data-layer]').forEach(b => b.classList.toggle('selected', b.dataset.layer === store.layer));
     drawFloorHeat();
     drawFloorOverlay();
-    $('floor-note').textContent = d.mode === 'calendar' ? t('Camera {name}. Density and areas are in image space, not a calibrated floor plan.', {
-        name: t(camera.name)
-    }) : t('Camera {name}. Undated recordings, shown as analysed.', {
-        name: t(camera.name)
-    });
+    $('floor-note').textContent = t(d.mode === 'calendar' ? 'Density and areas are in camera image space, not a calibrated floor plan.' : 'Undated recordings, in camera image space.');
 }
 
 function drawFloorHeat() {
@@ -399,14 +421,15 @@ function drawFloorHeat() {
     for (const hour of hours)
         for (const [cell, count] of Object.entries(d.heat[hour] ?? {})) values[Number(cell)] += count;
     const blurred = blur(values, gw, gh),
-        max = Math.max(1e-6, ...blurred),
+        ranked = Array.from(blurred).filter(Boolean).sort((a, b) => a - b),
+        max = Math.max(1e-6, ranked[Math.floor(ranked.length * .985)] ?? 0),
         small = document.createElement('canvas');
     small.width = gw;
     small.height = gh;
     const context = small.getContext('2d'),
         image = context.createImageData(gw, gh);
     for (let i = 0; i < blurred.length; i++) {
-        const [r, g, b, a] = heatColour((blurred[i] / max) ** .62);
+        const [r, g, b, a] = heatColour(Math.min(1, blurred[i] / max) ** .8);
         image.data.set([r, g, b, a], i * 4);
     }
     context.putImageData(image, 0, 0);
@@ -442,7 +465,7 @@ function blur(values, w, h) {
 }
 
 function heatColour(level) {
-    if (level < .05) return [0, 0, 0, 0];
+    if (level < .12) return [0, 0, 0, 0];
     const stops = [
         [0, 255, 210, 31],
         [.55, 255, 138, 31],
@@ -452,7 +475,7 @@ function heatColour(level) {
     while (index < stops.length - 2 && level > stops[index + 1][0]) index++;
     const [a, ar, ag, ab] = stops[index], [b, br, bg, bb] = stops[index + 1],
         ratio = (level - a) / (b - a);
-    return [ar + (br - ar) * ratio, ag + (bg - ag) * ratio, ab + (bb - ab) * ratio, Math.min(215, 40 + level * 230)];
+    return [ar + (br - ar) * ratio, ag + (bg - ag) * ratio, ab + (bb - ab) * ratio, Math.min(225, (level - .12) * 300)];
 }
 
 function centroid(points) {
@@ -538,6 +561,7 @@ function buildStage(stage) {
     return {
         days: t('Simulating two weeks of shoppers…'),
         video: t('Rendering the camera view…'),
+        clips: t('Preparing review clips…'),
         run: t('Saving the analysis…'),
         done: t('Finishing…')
     } [stage] ?? t('Starting…');
@@ -585,7 +609,7 @@ function renderFlow() {
         statTile(t('Time in store'), k.visit_minutes === null ? null : t('{n} min', {
             n: decimal(k.visit_minutes)
         })),
-        statTile(t('Typical wait'), waitText(k.wait_median_s), delta.wait_median_s, false),
+        statTile(t('Wait at the peak'), waitText(k.wait_peak_s), delta.wait_peak_s, false),
         statTile(t('To review'), number(k.needs_review), delta.needs_review, false)
     ].join('');
     const hours = d.hourly.filter(h => h.hour !== null),

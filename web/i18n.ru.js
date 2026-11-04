@@ -2,6 +2,14 @@
 // Russian interface text. Keys are the English source strings; an array holds
 // the one/few/many plural forms and is chosen by the {n} parameter.
 Object.assign(RU, {
+    // Accessibility labels
+    'Camera geometry, people and paths': 'Разметка, люди и пути на камере',
+    'Density of observed person footpoints': 'Плотность точек шагов',
+    'Recording analytics': 'Аналитика записи',
+    'Recording timeline': 'Шкала записи',
+    'Search views and recordings': 'Поиск по разделам и записям',
+    'Sentient home': 'Sentient, на главную',
+
     // Navigation and shell
     'Store': 'Магазин',
     'Monitor': 'Камеры',
@@ -85,8 +93,7 @@ Object.assign(RU, {
     'Queue': 'Очередь',
     'Longest line': 'Самая длинная',
     'Over the limit': 'Выше лимита',
-    'Typical wait': 'Обычно ждут',
-    'Worst 10% wait': 'Худшие 10%',
+    'Wait at the peak': 'Ждут в час пик',
     'Gave up waiting': 'Не дождались',
     'Pickups against the till': 'Сверка с кассой',
     'Pickup candidates': 'Подборы',
@@ -101,7 +108,8 @@ Object.assign(RU, {
     '{left} left without reaching a till. Most flagged near {zone}.': 'Из них {left} ушли мимо кассы. Чаще всего у зоны «{zone}».',
     'Open cases': 'Открыть',
     'Open a second till {a}–{b}': 'Откройте вторую кассу {a}–{b}',
-    'The line stayed above {limit} people for {minutes} min in that window. {abandoned} people gave up and left.': 'В эти часы очередь держалась выше {limit} человек {minutes} мин. Не дождались и ушли: {abandoned}.',
+    'The line stayed above {limit} people for {minutes} min in that window.': 'В эти часы очередь держалась выше {limit} человек {minutes} мин.',
+    '{n} people gave up and left.': ['{n} человек не дождался и ушёл.', '{n} человека не дождались и ушли.', '{n} человек не дождались и ушли.'],
     'See the queue': 'Смотреть очередь',
     'People stop at {zone} but rarely take anything': 'В зоне «{zone}» стоят, но редко берут',
     '{dwell} s per visit, and only {rate}% of visits end in a pickup. A typical shelf reaches {typical}%. Check price, layout and stock.': '{dwell} с на визит, подбор только в {rate}% случаев. Обычно у полок {typical}%. Проверьте цену, выкладку и наличие.',
@@ -114,11 +122,21 @@ Object.assign(RU, {
     'Footfall up {n}%': 'Трафик вырос на {n}%',
     'Footfall down {n}%': 'Трафик снизился на {n}%',
     'Compared with the previous period of the same length.': 'По сравнению с предыдущим таким же периодом.',
+    '{n} recordings added. Run the analysis to see this store.': ['{n} запись добавлена. Запустите анализ, чтобы увидеть магазин.', '{n} записи добавлены. Запустите анализ, чтобы увидеть магазин.', '{n} записей добавлено. Запустите анализ, чтобы увидеть магазин.'],
+    'Map this camera': 'Разметьте камеру',
+    'Draw the doors, shelves, queue and checkout. Every count here depends on them.': 'Отметьте двери, полки, очередь и кассу. От них зависят все показатели на этой странице.',
+    'Analyse a recording': 'Проанализируйте запись',
+    'It runs on this computer. If the detector is missing, System & models lists what to install.': 'Анализ идёт на этом компьютере. Если детектора нет, в разделе «Система и модели» написано, что установить.',
+    'Open cameras': 'Открыть камеры',
+    'Say when it was filmed': 'Добавьте дату съёмки',
+    'These cases come from one saved run, {time} of footage. Store totals cover the whole period.': 'Здесь случаи из одного сохранённого запуска, {time} записи. В разделе «Магазин» итоги за весь период.',
+    'simulated score {n}%': 'оценка симуляции {n}%',
+    'Preparing review clips…': 'Готовим клипы для проверки…',
     'Nothing stands out in this period.': 'За этот период ничего не выделяется.',
     'People coming in per hour. Darker means busier.': 'Сколько людей вошло за час. Чем темнее, тем больше.',
     'New tracks per hour. Darker means busier.': 'Новые треки за час. Чем темнее, тем больше.',
-    'Camera {name}. Density and areas are in image space, not a calibrated floor plan.': 'Камера: {name}. Плотность и зоны показаны в кадре, это не откалиброванный план зала.',
-    'Camera {name}. Undated recordings, shown as analysed.': 'Камера: {name}. Записи без даты, показаны как проанализированы.',
+    'Density and areas are in camera image space, not a calibrated floor plan.': 'Плотность и зоны показаны в кадре камеры, это не откалиброванный план зала.',
+    'Undated recordings, in camera image space.': 'Записи без даты, в кадре камеры.',
     '{tracks} tracks, {visits} visits, {dwell} s per visit': 'Треков: {tracks}, визитов: {visits}, {dwell} с на визит',
     'No visits in this period': 'За период визитов нет',
     'See a whole store before installing anything': 'Посмотрите магазин целиком, ничего не устанавливая',
@@ -367,19 +385,6 @@ Object.assign(RU, {
     'Doorway line': 'Линия двери',
     'Checkout': 'Касса',
     'Exit': 'Выход',
-
-    // Help
-    'Label this camera': 'Разметка камеры',
-    'Pause on a clear frame and open': 'Остановите видео на чётком кадре и откройте',
-    'Investigate tracks and signals': 'Треки и сигналы',
-    'Check pickups against the till': 'Сверка подборов с кассой',
-    'Every pickup candidate is followed to the checkout, the door or the end of its track. This needs a checkout area and a doorway line in the same camera. The result sets a review priority. It does not prove theft or payment.': 'Каждый подбор отслеживается до кассы, двери или конца трека. Для этого нужны зона кассы и линия двери на одной камере. Результат задаёт приоритет проверки и не доказывает ни кражу, ни оплату.',
-    'Generate a shift or monthly report': 'Отчёт за смену или месяц',
-    'Understand your results': 'Как читать результаты',
-    'Tracks are anonymous within one camera run. Visits count entries into areas. Observed dwell adds intervals no more than one second apart. Pickup candidates are model predictions, not confirmed purchases or theft.': 'Треки анонимны и действуют в пределах одного анализа камеры. Визиты считают входы в зоны. Время складывается из интервалов не длиннее секунды. Подборы это предсказания модели, а не подтверждённые покупки или кражи.',
-    'Live analysis runs inference on a recording at its source cadence. The detector samples at 5 fps; pickup scoring needs 13 observed samples. Timing shows processing speed and delay. Independent recordings cannot establish cross-camera identities or payment.': 'Анализ работает на записи в её темпе. Детектор берёт 5 кадров в секунду, для оценки подбора нужно 13 наблюдений. Отдельные записи не позволяют узнать человека на разных камерах или подтвердить оплату.',
-    'Heatmaps show the density of observed footpoint samples in this recording, in camera image coordinates. Traffic charts show distinct tracks per time interval, not entrance counts or store opening hours.': 'Тепловая карта показывает плотность точек шагов в координатах кадра. Графики трафика показывают разные треки за интервал, а не число входов.',
-    'Read the complete demo guide': 'Полное руководство',
 
     // Tracks
     'Search track ID or area…': 'Поиск по треку или зоне…',
@@ -662,6 +667,8 @@ Object.assign(RU, {
     'Track counts are summed camera-local IDs, not deduplicated customers.': 'Треки это сумма идентификаторов внутри камер, а не уникальные покупатели.',
     'Pickup candidates require review and do not establish purchases, payment or theft.': 'Подборы требуют проверки и не подтверждают покупку, оплату или кражу.',
     'One completed run per recording is used; area metrics use the specified saved geometry.': 'Для каждой записи берётся один завершённый анализ и указанная разметка.',
+    'Simulated data. The demo store generated these numbers; nothing here was measured in a shop.': 'Симуляция. Эти числа сгенерировал демо-магазин, в реальном магазине ничего не измерялось.',
+    'Report simulated and real recordings separately.': 'Симуляцию и реальные записи нельзя смешивать в одном отчёте. Сделайте два отчёта.',
     'Collection report: footage is selected explicitly and is not attributed to a calendar shift or month.': 'Отчёт по выбранным записям: они не привязаны к смене или месяцу.',
     'Period selection uses operator-assigned recording times; samples outside the selected interval are excluded.': 'Период считается по времени, заданному оператором. Данные вне периода исключены.',
     'No analysed recordings match this scope. This is an empty coverage report, not evidence of zero store activity.': 'За этот период нет проанализированных записей. Это отсутствие данных, а не отсутствие покупателей.',
@@ -671,7 +678,7 @@ Object.assign(RU, {
     'No analysed samples in this period': 'нет данных за период',
     'Full analysis': 'Полный анализ',
     'Person tracking': 'Трекинг людей',
-    'Live recording run': 'Запуск в реальном времени',
+    'Live recording run': 'Запуск',
     'Save or discard geometry edits before changing runs.': 'Сохраните или отмените правки разметки, чтобы сменить анализ.',
     'Wait for analysis to finish or cancel it.': 'Дождитесь окончания анализа или отмените его.',
     'The linked tracking run is unavailable; showing another saved run.': 'Анализ по ссылке недоступен, показываем другой сохранённый.',
@@ -704,3 +711,25 @@ Object.assign(RU, {
     'Exit door': 'Выход',
     'Overhead camera 01': 'Камера 01 над залом'
 });
+
+// The help panel has inline emphasis, so it is translated as one block.
+const RU_HELP = `
+<h3>Разметка камеры</h3>
+<ol>
+  <li>Остановите видео на чётком кадре и откройте вкладку <b>Разметка</b>.</li>
+  <li>Выберите <b>Зона у полки</b> и нажмите <b>Рисовать на кадре</b>. Обведите полосу пола перед полкой: в зону должны попадать ноги человека.</li>
+  <li>Нажмите <b>Завершить контур</b>. Дайте зоне название, например «Напитки». Углы можно перетаскивать. Не допускайте пересечения зон.</li>
+  <li>Линию двери рисуйте только там, где дверь видна, и укажите, что значит стрелка: вход или выход. Добавьте зоны кассы и выхода, если они в кадре.</li>
+  <li>Нажмите <b>Сохранить разметку</b>, затем запустите анализ. Перед правками анализ нужно остановить.</li>
+</ol>
+<h3>Треки и сигналы</h3>
+<p>В разделе <b>Треки</b> можно открыть анонимный трек, его интервалы и журнал визитов. Клик по рамке на видео выделяет след человека. Кадр и траекторию можно скачать. В разделе <b>Проверки</b> откройте случай, посмотрите клип и сохраните решение с заметкой.</p>
+<h3>Сверка подборов с кассой</h3>
+<p>Каждый подбор отслеживается до кассы, двери или конца трека. Для этого нужны зона кассы и линия двери на одной камере. Результат задаёт приоритет проверки и не доказывает ни кражу, ни оплату.</p>
+<h3>Отчёт за смену или месяц</h3>
+<p>Укажите время начала записи в разделе <b>Настройка камер</b>. В разделе <b>Отчёты</b> выберите записи и период, посмотрите охват и создайте PDF, Word, CSV и JSON. Записи без даты попадают только в отчёты по выбранным записям. Расписания работают, пока запущено приложение.</p>
+<h3>Как читать результаты</h3>
+<p>Треки анонимны и действуют в пределах одного анализа камеры. Визиты считают входы в зоны. Время складывается из интервалов не длиннее секунды. Подборы это предсказания модели, а не подтверждённые покупки или кражи.</p>
+<p>Анализ работает на записи в её темпе. Детектор берёт 5 кадров в секунду, для оценки подбора нужно 13 наблюдений. Отдельные записи не позволяют узнать человека на разных камерах или подтвердить оплату.</p>
+<p>Тепловая карта показывает плотность точек шагов в координатах кадра, а не откалиброванный план зала. Графики трафика показывают разные треки за интервал, а не число входов.</p>
+<a href="/guide" target="_blank" rel="noopener">Полное руководство (на английском)</a>`;

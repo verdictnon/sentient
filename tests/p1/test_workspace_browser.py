@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 import json
 from pathlib import Path
+import re
 import socket
 import subprocess
 import sys
@@ -28,6 +29,80 @@ def server(folder):
                     time.sleep(.1)
             yield url
         finally:p.terminate();p.wait(timeout=15)
+
+def demo_workspace(folder):
+    """A small simulated store, built in this process before the server starts."""
+    from datetime import date
+    from unittest.mock import patch
+    from fastapi.testclient import TestClient
+    from app import simulation as sim
+    from app.demo_store import seed_store
+    from app.p1.server import create_app
+    application=create_app(folder/'workspace')
+    with TestClient(application),patch.object(sim,'CLIP_SECONDS',12):
+        return seed_store(application.state.operations,days=2,today=date(2026,11,4))
+
+class StoreViewTests(unittest.TestCase):
+    def test_empty_workspace_offers_the_demo_store(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder=Path(directory)
+            with server(folder) as url,sync_playwright() as pw:
+                browser=pw.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1280,'height':800});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+                page.goto(url);expect(page.locator('#demo-build')).to_be_visible();expect(page.locator('#store-empty')).to_contain_text('simulated')
+                # A first real recording gets the steps it still needs, never a row of zeros.
+                video=make_video(folder/'first.mp4',times=list(range(0,1000,100)),width=320,height=180)
+                self.assertTrue(page.request.post(url+'/api/videos/import',data={'path':str(video),'store_id':'corner-shop'}).ok)
+                page.goto(url);page.wait_for_function('store.data?.mode==="collection"')
+                expect(page.locator('#store-narrative')).to_contain_text('Run the analysis')
+                self.assertEqual(page.locator('#store-actions .action h3').all_text_contents(),['Map this camera','Analyse a recording','Say when it was filmed'])
+                expect(page.locator('#sim-tape')).to_be_hidden()
+                page.locator('#store-actions .action button').first.click();expect(page.locator('#page-label')).to_have_text('Camera setup')
+                self.assertEqual(errors,[]);browser.close()
+
+    def test_store_day_themes_language_and_mobile(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder=Path(directory);seeded=demo_workspace(folder)
+            with server(folder) as url,sync_playwright() as pw:
+                browser=pw.chromium.launch(headless=True);context=browser.new_context(viewport={'width':1440,'height':900},locale='en-GB',color_scheme='light');page=context.new_page();page.set_default_timeout(10000)
+                errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+                page.goto(url);page.wait_for_function('store.data?.basis==="simulated"')
+                expect(page.locator('#page-label')).to_have_text('Store')
+                expect(page.locator('#sim-tape')).to_be_visible()
+                expect(page.locator('#store-narrative')).to_contain_text('people came in')
+                expect(page.locator('#receipt')).to_contain_text('Floor Z-report')
+                expect(page.locator('#receipt')).to_contain_text('Simulated',ignore_case=True)
+                self.assertGreater(page.locator('#store-actions .action').count(),0)
+                self.assertGreater(page.locator('.busy-cell').count(),10)
+                # Layers redraw the map from the same period.
+                page.wait_for_function("document.getElementById('floor-heat').getContext('2d').getImageData(0,0,1280,720).data.some(v=>v>0)")
+                page.locator('[data-layer=flows]').click();self.assertGreater(page.locator('#floor-overlay .map-flow').count(),0);expect(page.locator('#floor-heat')).to_be_hidden()
+                page.locator('[data-layer=zones]').click();self.assertGreater(page.locator('#floor-overlay .map-value').count(),0)
+                page.locator('[data-span="7"]').click();page.wait_for_function('store.data.span_days===7');expect(page.locator('#store-narrative')).to_contain_text('came in')
+                page.locator('[data-span="1"]').click();page.wait_for_function('store.data.span_days===1')
+                pdf=page.request.get(url+page.locator('#z-report-pdf').get_attribute('href'));self.assertTrue(pdf.body().startswith(b'%PDF'))
+                # Themes: light is white, dark is not, and the choice survives a reload.
+                self.assertEqual(page.evaluate('getComputedStyle(document.body).backgroundColor'),'rgb(255, 255, 255)')
+                page.locator('#theme-toggle').click();self.assertEqual(page.evaluate('document.documentElement.dataset.theme'),'dark')
+                self.assertNotEqual(page.evaluate('getComputedStyle(document.body).backgroundColor'),'rgb(255, 255, 255)')
+                page.reload();page.wait_for_function('store.data');self.assertEqual(page.evaluate('document.documentElement.dataset.theme'),'dark')
+                page.locator('#theme-toggle').click()
+                # Analytics draws the store half and the recording half.
+                page.locator('[data-nav=analytics]').click();page.wait_for_function("document.querySelectorAll('#footfall-chart .column').length>5")
+                self.assertGreater(page.locator('#zone-table tbody tr').count(),3);self.assertGreater(page.locator('.funnel-row').count(),1)
+                # Cases show the cross-check, and the clip plays in the dialog.
+                page.goto(url+'/?view=incidents&video='+seeded['video_id']);page.wait_for_function('ops.data?.incidents.length>=0')
+                expect(page.locator('#page-label')).to_have_text('Investigations');expect(page.locator('#case-scope')).to_contain_text('one saved run')
+                page.locator('[data-nav=overview]').click();expect(page.locator('#timeline-plot')).to_be_visible()
+                page.locator('#play-toggle').click();page.wait_for_function("!document.getElementById('player').paused");page.locator('#play-toggle').click()
+                # Russian replaces the static text and the dynamic text after a reload.
+                page.locator('[data-nav=store]').click();page.locator('#lang-toggle').click();page.wait_for_function("document.documentElement.lang==='ru'");page.wait_for_function('store.data')
+                expect(page.locator('#page-label')).to_have_text('Магазин');expect(page.locator('#store-narrative')).to_contain_text(re.compile('заш(ёл|ли|ло)'));expect(page.locator('#sim-tape')).to_contain_text('Симуляция')
+                expect(page.locator('#receipt')).to_contain_text('Z-отчёт зала',ignore_case=True);expect(page.locator('[data-nav=incidents]')).to_contain_text('Проверки')
+                page.locator('[data-nav=help]').click();expect(page.locator('#help-panel')).to_contain_text('Сверка подборов с кассой')
+                page.set_viewport_size({'width':390,'height':844})
+                for view in ('store','overview','analytics','incidents','reports'):
+                    page.goto(url+'/?view='+view);page.wait_for_function('store.data');self.assertFalse(page.evaluate('document.documentElement.scrollWidth>innerWidth'),view)
+                self.assertEqual(errors,[]);browser.close()
 
 class WorkspaceBrowserTests(unittest.TestCase):
     def test_operations_track_reviews_reports_and_schedules(self):

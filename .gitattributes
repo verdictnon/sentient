@@ -10,3 +10,5 @@
 *.png binary
 *.jpg binary
 *.zip binary
+*.bat text eol=crlf
+*.woff2 binary

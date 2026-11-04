@@ -1,7 +1,13 @@
 # Current operations workspace
 
 Use http://127.0.0.1:8766. Source remains app/ and web/; the existing
-sentient-review-workspace.service runs the application.
+sentient-review-workspace.service runs the application. On any other laptop,
+./run_demo.sh or run_demo.bat opens the simulated store. No models or footage needed.
+
+The Store view is the home screen: one day or week, a Z-report, a floor map, the
+pickup cross-check and rule-based next steps, in light or dark and English or
+Russian. Simulated data is labelled everywhere and never shares a report with
+real recordings. docs/PITCH_DEMO.md is the pitch run-through.
 
 The v2 workspace adds track inspection and evidence, area transitions and signals,
 persistent incident reviews, recording dates, shift/month/collection reporting in

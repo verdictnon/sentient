@@ -1,25 +1,65 @@
 # Sentient
 
-A local retail-camera demo: pickup candidates, observed person paths, editable
-scene geometry and shelf activity. Runs on the RTX 4050 with cached local models.
+Sentient reads footage from a shop's cameras and answers what a manager asks at
+closing time: how many people came in, when the line ran too long, which shelves
+people stopped at, and which pickups never reached a till. It runs on one computer
+and the video stays there.
 
-## Start
+## Try it
+
+You need Python 3.12 or newer. No footage, models or GPU.
+
+```sh
+./run_demo.sh     # macOS or Linux
+run_demo.bat      # Windows
+```
+
+The first run installs the application and builds a simulated store: two weeks of
+traffic and a two-minute camera view. That took 100 seconds on a clean Linux copy
+and leaves a 380 MB Python environment. After that it starts at once and needs no
+network. Add `--rebuild` to move the simulated days up to yesterday. The Windows
+launcher has not been run yet.
+
+Everything simulated says so: the hazard tape on screen, the stamp in the video,
+the Z-report and every exported document. It goes through the same analysis code
+as real recordings, and the two never share a rollup or a report.
+
+[The pitch run-through](docs/PITCH_DEMO.md) is a three-minute script in Russian.
+
+## What you get
+
+- **Store:** one day or week on one screen, with a plain summary, a till-roll
+  Z-report with PDF, a heat, route or zone map, a week grid and what to do next.
+- **Pickup cross-check:** each pickup candidate is followed to the checkout area or
+  the door. A pickup that never reached a till goes to review with a short clip.
+  It is a reason to look, not proof of theft.
+- **Analytics:** footfall and queue by hour, wait times, shelf ranking, the funnel
+  from door to till, and the most common routes.
+- **Cameras, Tracks, Investigations and Reports:** source-paced analysis, track
+  histories, operator reviews, and PDF, Word, CSV and JSON reports on a schedule.
+- Light and dark themes, in English and Russian.
+
+## Real recordings
+
+The detector, pickup model and footage are not in this repository. Where they are
+installed, start the workspace with:
 
 ```sh
 .venv-app/bin/python scripts/start_local_workspace.py
 ```
 
-Open **http://127.0.0.1:8766**. Select a demo recording and click **Start live
-analysis**. Seven public 720p recordings are installed, including a 59.8-second
-contiguous sequence. Live mode performs inference during source-paced playback;
-it samples the detector at 5 fps and uses past frames for pickup scores. It is
-not a connected live CCTV stream. **Analyze full video** provides persistent,
-seekable tracking and action results. Import your own MP4 through **Add video**.
+Open **http://127.0.0.1:8766**. Import an MP4 through **Add video**. The Store view
+then lists what the recording still needs: mapped areas, an analysis and a start
+time. **Start live analysis** performs inference during source-paced playback,
+sampling the detector at 5 fps and using past frames for pickup scores. It is not
+a connected CCTV stream. **Analyze full video** provides persistent, seekable
+tracking and action results. Seven public 720p recordings make up the installed
+demo library, including a 59.8-second contiguous sequence.
 
-Use **Geometry** to draw named floor strips in front of shelves, doorway lines,
-checkout areas or other floor areas. **How to label** explains the workflow
-inside the application. Shelf visits, observed dwell, occupancy and nearby
-pickup alerts appear together and export to CSV/JSON.
+Use **Camera setup** to draw named floor strips in front of shelves, doorway lines,
+waiting and checkout areas. **Demo guide** explains the workflow inside the
+application. Shelf visits, observed dwell, occupancy and nearby pickup alerts appear
+together and export to CSV/JSON.
 
 Read [the demo guide](docs/DEMO_GUIDE.md) for operation, geometry, timing and
 metric definitions. [Data sources](docs/DATA_SOURCES.md) records the footage
@@ -71,6 +111,7 @@ source search must not be represented as satisfying that requirement.
 ## Directory
 
 - `app/`, `web/`, `configs/`: the canonical running application.
+- `run_demo.sh`, `run_demo.bat`, `scripts/run_demo.py`: the one-command demo.
 - `scripts/`: acquisition, training, model export, review bridge and demo tools.
 - `tests/`: application, media, tracking, geometry and browser checks.
 - `runs/review_workspace/`: active catalog, registered media references, saved
