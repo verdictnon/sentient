@@ -99,8 +99,10 @@ class StoreViewTests(unittest.TestCase):
                 page.locator('[data-nav=store]').click();page.locator('#lang-toggle').click();page.wait_for_function("document.documentElement.lang==='ru'");page.wait_for_function('store.data')
                 expect(page.locator('#page-label')).to_have_text('Магазин');expect(page.locator('#store-narrative')).to_contain_text(re.compile('заш(ёл|ли|ло)'));expect(page.locator('#sim-tape')).to_contain_text('Симуляция')
                 expect(page.locator('#receipt')).to_contain_text('Z-отчёт зала',ignore_case=True);expect(page.locator('[data-nav=incidents]')).to_contain_text('Проверки')
-                page.locator('[data-nav=showcase]').click();expect(page.locator('#page-label')).to_have_text('Распознавание');page.wait_for_function("showcase.data?.frames.length>100")
+                page.locator('[data-nav=showcase]').click();expect(page.locator('#page-label')).to_have_text('Все камеры');page.wait_for_function("cameraWall.tiles.length>0")
+                page.locator('.allcam-tile').first.click();page.wait_for_function("showcase.data?.frames.length>100")
                 page.evaluate("document.getElementById('showcase-video').currentTime=15");page.wait_for_function("document.getElementById('showcase-seen').textContent!=='0'")
+                page.locator('#showcase-back').click();expect(page.locator('#allcam-view')).to_be_visible()
                 page.locator('[data-nav=help]').click();expect(page.locator('#help-panel')).to_contain_text('Сверка подборов с кассой')
                 page.set_viewport_size({'width':390,'height':844})
                 for view in ('store','overview','analytics','incidents','reports'):

@@ -761,7 +761,6 @@ body[data-view=wall] .page-footer {display:none;}
 @media(max-width:600px){.wall-toolbar {gap:10px;}.wall-toolbar select {max-width:180px;}.wall-toolbar-end {margin-left:0;width:100%;}.wall-stage {border-radius:7px;}.wall-stats {gap:20px;}.wall-stats strong {font-size:19px;}.wall-stats span {font-size:10px;}.wall-paths {display:none;}.wall-camera-label {top:8px;left:8px;font-size:10px;}}
 
 /* Recognition */
-.showcase-note{margin:4px 0 0;color:var(--ink-2)}
 .showcase-grid{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:20px;margin:14px 0 20px}
 .showcase-video{position:relative;background:#000;border-radius:8px;overflow:hidden;line-height:0}
 .showcase-video video{display:block;width:100%;height:auto}
@@ -781,3 +780,90 @@ body[data-view=wall] .page-footer {display:none;}
 .strengths{margin-bottom:14px;padding:12px 14px;border-left:3px solid var(--ok);background:var(--ok-soft);border-radius:4px}
 .strengths h3{margin:0 0 6px;font-size:14px}
 .strengths ul{margin:0;padding-left:18px;font-size:13.5px;color:var(--ink-2)}
+
+/* Camera wall */
+.allcam-hint{margin:0 0 12px;color:var(--ink-3)}
+.allcam-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.allcam-tile{display:block;width:100%;padding:0;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer;color:var(--ink);font:inherit;min-height:0}
+.allcam-tile:hover{border-color:var(--ink-3);background:var(--surface)}
+.allcam-screen{position:relative;display:block;aspect-ratio:16/9;background:#000;line-height:0}
+.allcam-screen video,.allcam-screen canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.allcam-screen em{position:absolute;top:8px;left:8px;padding:3px 7px;border-radius:4px;background:rgba(0,0,0,.65);color:#fff;font:600 12px/1.2 var(--font)}
+.allcam-name{display:flex;justify-content:space-between;gap:12px;padding:12px 14px;font-size:15px}
+.allcam-name small{color:var(--ink-3);font-size:14px;white-space:nowrap}
+
+/* Blocks for the simple view */
+.stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:18px}
+.stat-cards article{display:grid;gap:4px;padding:16px 18px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.stat-cards span{font-size:15px;color:var(--ink-2)}
+.stat-cards b{font-size:34px;line-height:1.15;font-weight:700;font-variant-numeric:tabular-nums}
+.stat-cards .alert{border-color:var(--sale);background:var(--sale-soft)}
+.stat-cards .alert b{color:var(--sale)}
+.nav-more{width:100%;min-height:36px;margin-bottom:4px;border:0;background:transparent;color:var(--ink-3);justify-content:flex-start;font-size:14px}
+.analytics-more{margin:0 0 24px}
+body.simple{font-size:16px}
+body.simple .panel,body.simple .floor,body.simple .store-actions,body.simple .store-grid{padding:18px 20px;margin-bottom:18px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+body.simple .kpi-row{gap:14px}
+body.simple .kpi-row article{padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+body.simple .panel-head p.muted,body.simple .field-note:not(#showcase-credit),body.simple #work-basis,body.simple #stock-basis{display:none}
+body.simple .narrative{max-width:none;margin-bottom:14px;font-size:30px}
+body.simple .store-layout{display:block}
+body.simple .store-side{position:static;margin-bottom:18px}
+body.simple .printer{display:none}
+body.simple.receipt-open .printer{display:block;max-width:360px;margin:0 auto 12px}
+body.simple .receipt-actions{display:flex;gap:10px;justify-content:flex-start}
+body.simple .store-actions{margin-top:18px}
+body.simple .action{padding:14px 0}
+body.simple .action h3{font-size:17px}
+body.simple .action p{font-size:15px}
+body.simple #actions-more{margin-top:12px}
+body.simple .strengths{display:none}
+body.simple .sim-tape{margin:0 0 14px;padding:6px 12px;background:var(--sunken);border-radius:8px}
+body.simple .sim-tape p{padding:0;font-weight:500;color:var(--ink-2)}
+body.simple:not(.show-details) .detail-only{display:none!important}
+body.simple:not(.show-details) #analytics-section,body.simple:not(.show-details) #advanced-analytics{display:none!important}
+body.simple .detail-only-work{display:none}
+body.simple:not(.nav-open) [data-nav=overview],body.simple:not(.nav-open) [data-nav=tracking],body.simple:not(.nav-open) [data-nav=incidents],body.simple:not(.nav-open) [data-nav=geometry],body.simple:not(.nav-open) [data-nav=system],body.simple:not(.nav-open) [data-nav=help]{display:none}
+body.simple #shelf-operations-section>.panel-head,body.simple #work-orders-section>.panel-head{display:none}
+body.simple label:has(#shelf-recording),body.simple label:has(#report-notes),body.simple .panel:has(#schedule-form),body.simple section:has(>#schedule-form){display:none}
+body.simple .stock-metrics{display:none}
+body.simple #shelf-operations-section .toolbar,body.simple #work-orders-section .toolbar{margin-bottom:16px}
+
+/* Tone: a tinted page, a dark rail, and colour only where it means something.
+   Blue informs, amber asks for attention, red is a problem, green is fine. */
+body.simple{--bg:#eef1f6;--tone-info:#e7eefc;--tone-info-ink:#174bb5;background:var(--bg)}
+:root[data-theme=dark] body.simple{--bg:#080e1a;--tone-info:#14264a;--tone-info-ink:#9dbdff}
+body.simple .rail{background:#101c33;border-right:0}
+body.simple .rail .brand,body.simple .rail .brand span{color:#fff}
+body.simple .nav-item{color:#c3cede}
+body.simple .nav-item:hover{background:#1d2c49;color:#fff}
+body.simple .nav-item.active,body.simple .nav-item.active:hover{background:var(--tag);color:var(--tag-ink)}
+body.simple .nav-more{color:#93a3bb}
+body.simple .nav-more:hover{background:#1d2c49;color:#fff}
+body.simple .rail-foot{color:#93a3bb}
+.stat-cards .info{background:var(--tone-info,var(--series-soft));border-color:transparent}
+.stat-cards .info b{color:var(--tone-info-ink,var(--series))}
+.stat-cards .warn{background:var(--warn-soft);border-color:transparent}
+.stat-cards .warn b{color:var(--warn)}
+.stat-cards .ok{background:var(--ok-soft);border-color:transparent}
+.stat-cards .ok b{color:var(--ok)}
+.stat-cards .alert{border-color:transparent}
+body.simple .store-actions{padding:0;background:transparent;border:0}
+body.simple .store-actions>h2{margin-bottom:10px}
+body.simple .action{margin-bottom:10px;padding:14px 18px;border:0;border-radius:10px}
+body.simple .action{background:var(--warn-soft)}
+body.simple .action.alert{background:var(--sale-soft)}
+body.simple .action.info{background:var(--tone-info)}
+body.simple .action .subtle-button{flex:none;background:var(--surface)}
+body.simple .delta{padding:1px 7px;border-radius:99px;font-weight:600}
+body.simple .delta.good{background:var(--ok-soft);color:var(--ok)}
+body.simple .delta.bad{background:var(--sale-soft);color:var(--sale)}
+body.simple .stock-card{background:var(--surface);border-top:0}
+body.simple .stock-card.empty{background:var(--sale-soft)}
+body.simple .stock-card.refill{background:var(--warn-soft)}
+body.simple .stock-card.empty .stock-status{color:var(--sale);font-weight:700}
+body.simple .stock-card.refill .stock-status{color:var(--warn);font-weight:700}
+body.simple .work-card{border-top-width:1px;border-top-color:var(--line)}
+body.simple .work-card.overdue{background:var(--warn-soft);border-color:transparent}
+body.simple .work-card .subtle-button,body.simple .stock-card button{background:var(--surface)}
+body.simple #reports-section>*{padding:18px 20px;margin-bottom:18px;background:var(--surface);border:1px solid var(--line);border-radius:12px}

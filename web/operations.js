@@ -15,7 +15,7 @@ const ops = {
 };
 const viewInfo = {
     wall: ['Control room', 'Cameras, activity and store layout.'],
-    showcase: ['Recognition', 'A real recording with what the model found in it.'],
+    showcase: ['All cameras', 'Real recordings with what the model found in them.'],
     work: ['Operations board', 'Assign, track and close store work.'],
     shelves: ['Shelves', 'Stock checks, refill work and shelf activity.'],
     store: ['Store', 'The day on one screen.'],

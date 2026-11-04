@@ -45,10 +45,11 @@ runtime data are kept outside Git. Dependencies are in `requirements-app.txt`.
 - **Store identity:** editable display names without changing footage or history.
 - Light and dark themes, in English and Russian.
 
-## Recognition
+## All cameras
 
-The **Recognition** tab plays real store footage with what YOLOv8n-pose and ByteTrack
-found in it. The model ran ahead of time through `scripts/build_showcase.py`, so the
+The **All cameras** tab plays every real recording at once in a grid, with what
+YOLOv8n-pose and ByteTrack found in it, and opens one on click. These are recordings
+in a loop, not a connected CCTV stream. The model ran ahead of time through `scripts/build_showcase.py`, so the
 tab needs no GPU. `scripts/run_demo.py` adds these clips as recordings, and they take
 the place of the drawn store clip. Clips are read from `app/assets/real` and the
 git-ignored `data/real-footage`. The generated store numbers have no video.

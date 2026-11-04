@@ -66,7 +66,7 @@ function drawPose(ctx, pose) {
     }
 }
 
-function drawDetections(canvas, data, ms) {
+function drawDetections(canvas, data, ms, size = {font: 12, line: 2}) {
     const previous = showcase.data;
     showcase.data = data;
     const [width, height] = data.size,
@@ -76,8 +76,8 @@ function drawDetections(canvas, data, ms) {
     canvas.width = width * scale;
     canvas.height = height * scale;
     ctx.scale(scale, scale);
-    ctx.lineWidth = 2;
-    ctx.font = '600 12px Onest, system-ui, sans-serif';
+    ctx.lineWidth = size.line;
+    ctx.font = `600 ${size.font}px Onest, system-ui, sans-serif`;
     for (const box of boxes) {
         const [track, x1, y1, x2, y2, score, observed, pose] = box,
             trail = showcaseTrail(track, ms);
@@ -92,11 +92,12 @@ function drawDetections(canvas, data, ms) {
             ctx.stroke();
         }
         const label = observed ? `#${track}  ${Math.round(score * 100)}%` : `#${track}`,
-            wide = ctx.measureText(label).width + 10;
+            wide = ctx.measureText(label).width + 10,
+            tall = size.font + 7;
         ctx.fillStyle = observed ? '#ffd21f' : 'rgba(255,255,255,.8)';
-        ctx.fillRect(x1 - 1, Math.max(0, y1 - 19), wide, 19);
+        ctx.fillRect(x1 - 1, Math.max(0, y1 - tall), wide, tall);
         ctx.fillStyle = '#10131a';
-        ctx.fillText(label, x1 + 4, Math.max(14, y1 - 5));
+        ctx.fillText(label, x1 + 4, Math.max(size.font + 2, y1 - 5));
     }
     showcase.data = previous;
     return {
@@ -132,19 +133,75 @@ function animateShowcase() {
     if (!$('showcase-video').paused && ops.view === 'showcase') showcase.raf = requestAnimationFrame(animateShowcase);
 }
 
+// Every recording at once, the way a shop's camera monitor looks.
+const cameraWall = {
+    tiles: [],
+    timer: 0
+};
+
 async function openShowcase() {
     if (showcase.list === undefined) {
         showcase.list = await api('/api/showcase');
         $('showcase-empty').hidden = showcase.list.length > 0;
-        $('showcase-stage').hidden = !showcase.list.length;
-        $('showcase-picker').innerHTML = showcase.list.map(clip => `<option value="${esc(clip.id)}">${esc(t(clip.name))}${clip.store ? ' · ' + esc(clip.store) : ''}</option>`).join('');
-        $('showcase-picker').hidden = showcase.list.length < 2;
-        $('showcase-picker').onchange = () => loadShowcase($('showcase-picker').value).catch(e => toast(e.message, true));
-        if (showcase.list.length) await loadShowcase(showcase.list[0].id);
-        return;
+        $('allcam-view').hidden = !showcase.list.length;
+        $('allcam-cameras').textContent = number(showcase.list.length);
+        $('allcam-grid').innerHTML = showcase.list.map(clip => `<button class="allcam-tile" data-clip="${esc(clip.id)}"><span class="allcam-screen"><video muted loop playsinline preload="auto" src="/api/showcase/${encodeURIComponent(clip.id)}/video.mp4"></video><canvas></canvas><em>${esc(t('Recording'))}</em></span><span class="allcam-name"><b>${esc(t(clip.name))}</b><small></small></span></button>`).join('');
+        cameraWall.tiles = await Promise.all([...document.querySelectorAll('.allcam-tile')].map(async tile => ({
+            tile,
+            video: tile.querySelector('video'),
+            canvas: tile.querySelector('canvas'),
+            count: tile.querySelector('small'),
+            data: await api('/api/showcase/' + encodeURIComponent(tile.dataset.clip))
+        })));
+        cameraWall.tiles.forEach(({
+            tile
+        }) => tile.onclick = () => focusCamera(tile.dataset.clip).catch(e => toast(e.message, true)));
     }
-    if (showcase.data) paintShowcase();
+    if (!$('showcase-focus').hidden) return;
+    startCameraWall();
 }
+
+function startCameraWall() {
+    for (const tile of cameraWall.tiles) tile.video.play().catch(() => {});
+    clearInterval(cameraWall.timer);
+    cameraWall.timer = setInterval(paintCameraWall, 80);
+}
+
+function paintCameraWall() {
+    if (ops.view !== 'showcase') return;
+    let people = 0;
+    for (const tile of cameraWall.tiles) {
+        const inFrame = drawDetections(tile.canvas, tile.data, tile.video.currentTime * 1000, {
+            font: 26,
+            line: 4
+        }).boxes.filter(box => box[6]).length;
+        people += inFrame;
+        tile.count.textContent = t('{n} in frame', {
+            n: number(inFrame)
+        });
+    }
+    $('allcam-people').textContent = number(people);
+}
+
+function stopCameraWall() {
+    clearInterval(cameraWall.timer);
+    for (const tile of cameraWall.tiles) tile.video.pause();
+}
+
+async function focusCamera(id) {
+    stopCameraWall();
+    $('allcam-view').hidden = true;
+    $('showcase-focus').hidden = false;
+    await loadShowcase(id);
+    $('showcase-video').play().catch(() => {});
+}
+
+$('showcase-back').onclick = () => {
+    $('showcase-video').pause();
+    $('showcase-focus').hidden = true;
+    $('allcam-view').hidden = false;
+    startCameraWall();
+};
 
 async function loadShowcase(id) {
     const data = await api('/api/showcase/' + encodeURIComponent(id)),
@@ -160,7 +217,6 @@ async function loadShowcase(id) {
         t: time
     })).sort((a, b) => a.t - b.t);
     $('showcase-title').textContent = t(data.name);
-    $('showcase-note').textContent = t('Real footage. The model found these people ahead of time, so this plays on any laptop.');
     $('showcase-credit').innerHTML = `${esc(t('Video'))}: <a href="${esc(data.source_url)}" target="_blank" rel="noreferrer">${esc(data.source)}</a>, ${esc(data.licence)}. ${esc(t('Model'))}: ${esc(model.detector)}, ${esc(model.tracker)}, ${esc(t('{n} samples a second', {n: Math.round(1000 / model.sample_ms)}))}.`;
     $('showcase-video').src = `/api/showcase/${encodeURIComponent(id)}/video.mp4`;
     Chart.area($('showcase-chart'), data.frames.map(frame => ({
@@ -178,6 +234,7 @@ async function loadShowcase(id) {
 
 function pauseShowcase() {
     $('showcase-video').pause();
+    stopCameraWall();
 }
 
 $('showcase-video').addEventListener('play', animateShowcase);

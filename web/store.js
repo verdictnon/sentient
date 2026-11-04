@@ -122,7 +122,8 @@ function renderStore() {
         renderOnboarding();
         return;
     }
-    $('store-narrative').innerHTML = narrative(d);
+    $('store-narrative').innerHTML = state.portableDemo ? shortNarrative(d) : narrative(d);
+    renderStoreStats(d);
     renderReceipt(d);
     renderActions(d);
     renderBusyGrid(d);
@@ -159,6 +160,32 @@ function waitText(seconds) {
     if (seconds === null || seconds === undefined) return '—';
     const total = Math.round(seconds);
     return `${Math.floor(total/60)}:${String(total%60).padStart(2,'0')}`;
+}
+
+function shortNarrative(d) {
+    const k = d.kpis,
+        when = capitalise(dayLabel(d.end, {
+            weekday: 'long'
+        }));
+    return d.span_days > 1 ? t('This week: {n} people.', {
+        n: mark(number(k.entries ?? k.tracks))
+    }) : t('{when}: {n} people.', {
+        when: esc(when),
+        n: mark(number(k.entries ?? k.tracks))
+    });
+}
+
+// Four numbers an owner can read from across the room.
+function renderStoreStats(d) {
+    const k = d.kpis,
+        cards = [
+            [t('Busiest hour'), k.busiest_hour ? hourLabel(k.busiest_hour.hour) : '—', 'info'],
+            [t('Long line'), k.queue_over_minutes ? durationText(k.queue_over_minutes) : '—', k.queue_over_minutes ? 'warn' : 'info'],
+            [t('Gave up in line'), k.abandoned === null ? '—' : number(k.abandoned), k.abandoned ? 'warn' : 'info'],
+            [t('Missed the till'), k.left_without_checkout === null ? '—' : number(k.left_without_checkout), k.left_without_checkout ? 'alert' : '']
+        ];
+    $('store-stats').hidden = !state.portableDemo;
+    $('store-stats').innerHTML = cards.map(([label, value, tone]) => `<article class="${tone}"><span>${esc(label)}</span><b>${esc(value)}</b></article>`).join('');
 }
 
 function narrative(d) {
@@ -374,10 +401,19 @@ function renderActions(d) {
             link
         };
     }));
-    const good = strengths(d);
+    const good = strengths(d),
+        all = items.length,
+        shown = state.portableDemo && !store.allActions ? items.slice(0, 3) : items;
     $('store-strengths').hidden = !good.length;
     $('store-strengths').innerHTML = `<h3>${esc(t('What is working'))}</h3><ul>${good.map(line => `<li>${esc(line)}</li>`).join('')}</ul>`;
-    $('store-actions').innerHTML = items.map(item => `<article class="action ${item.tone}"><div><h3>${esc(item.title)}</h3><p>${esc(item.detail)}</p>${PREVENTION[item.code] ? `<p class="action-tip">${esc(t('To avoid this'))}: ${esc(t(PREVENTION[item.code]))}</p>` : ''}</div>${item.view === 'incidents' && d.basis === 'simulated' && state.videos.every(v => !v.source_profile?.simulated) ? '' : `<button class="subtle-button" data-action-view="${esc(item.view)}">${esc(item.link)}</button>`}</article>`).join('') || `<p class="field-note">${esc(t('Nothing stands out in this period.'))}</p>`;
+    $('store-actions').innerHTML = shown.map(item => `<article class="action ${item.tone}"><div><h3>${esc(item.title)}</h3><p>${esc(item.detail)}</p>${PREVENTION[item.code] && !state.portableDemo ? `<p class="action-tip">${esc(t('To avoid this'))}: ${esc(t(PREVENTION[item.code]))}</p>` : ''}</div>${item.view === 'incidents' && d.basis === 'simulated' && state.videos.every(v => !v.source_profile?.simulated) ? '' : `<button class="subtle-button" data-action-view="${esc(item.view)}">${esc(item.link)}</button>`}</article>`).join('') || `<p class="field-note">${esc(t('Nothing stands out in this period.'))}</p>`;
+    if (shown.length < all) {
+        $('store-actions').insertAdjacentHTML('beforeend', `<button id="actions-more" class="subtle-button">${esc(t('Show all ({n})', {n: all}))}</button>`);
+        $('actions-more').onclick = () => {
+            store.allActions = true;
+            renderActions(d);
+        };
+    }
     document.querySelectorAll('[data-action-view]').forEach(b => b.onclick = () => openFromAction(b.dataset.actionView));
 }
 

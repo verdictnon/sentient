@@ -17,7 +17,7 @@
       document.documentElement.lang = lang;
     })();
   </script>
-  <link rel="stylesheet" href="/style.css?v=10">
+  <link rel="stylesheet" href="/style.css?v=16">
 </head>
 <body data-view="store">
 <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -53,7 +53,7 @@
     <nav class="navigation">
       <button class="nav-item" data-nav="wall"><svg class="icon"><use href="#i-camera"/></svg>Control room</button>
       <button class="nav-item" data-nav="store"><svg class="icon"><use href="#i-store"/></svg>Store</button>
-      <button class="nav-item" data-nav="showcase"><svg class="icon"><use href="#i-camera"/></svg>Recognition</button>
+      <button class="nav-item" data-nav="showcase"><svg class="icon"><use href="#i-camera"/></svg>All cameras</button>
       <button class="nav-item" data-nav="overview"><svg class="icon"><use href="#i-camera"/></svg>Monitor</button>
       <button class="nav-item" data-nav="work"><svg class="icon"><use href="#i-report"/></svg>Operations board</button>
       <button class="nav-item" data-nav="shelves"><svg class="icon"><use href="#i-store"/></svg>Shelves</button>
@@ -63,6 +63,7 @@
       <button class="nav-item" data-nav="tracking"><svg class="icon"><use href="#i-people"/></svg>Track explorer</button>
       <button class="nav-item" data-nav="reports"><svg class="icon"><use href="#i-report"/></svg>Report centre</button>
       <span class="nav-gap"></span>
+      <button class="nav-more" id="nav-more" aria-expanded="false" hidden>More</button>
       <button class="nav-item" data-nav="geometry"><svg class="icon"><use href="#i-zone"/></svg>Camera setup</button>
       <button class="nav-item" data-nav="system"><svg class="icon"><use href="#i-gear"/></svg>System &amp; models</button>
       <button class="nav-item" data-nav="help"><svg class="icon"><use href="#i-help"/></svg>Operator guide</button>
@@ -119,6 +120,7 @@
         <div class="store-layout">
           <div class="store-main">
             <p class="narrative" id="store-narrative"></p>
+            <div class="stat-cards" id="store-stats" hidden></div>
             <section class="floor" aria-label="Floor map">
               <div class="floor-tools">
                 <div class="segmented" id="map-layer" role="group" aria-label="Map layer">
@@ -147,6 +149,7 @@
               <div class="paper-well"><article class="receipt" id="receipt"></article></div>
             </div>
             <div class="receipt-actions">
+              <button id="receipt-toggle" class="subtle-button" hidden>Show Z-report</button>
               <a id="z-report-pdf" class="button-link" download><svg class="icon"><use href="#i-download"/></svg>Download PDF</a>
             </div>
           </aside>
@@ -169,7 +172,7 @@
         <div id="work-kpis" class="kpi-row"></div>
         <p id="work-basis" class="field-note"></p>
         <div id="work-grid" class="work-grid"></div>
-        <div class="split">
+        <div class="split detail-only-work">
           <section class="panel"><div class="panel-head"><h2>Shelf check schedule</h2></div><p class="muted">Counts become due after the configured interval. Confirming a count starts the next interval.</p><div id="work-policies" class="table-wrap"></div></section>
           <section class="panel"><div class="panel-head"><h2>Store identity</h2></div><form id="store-profile-form"><label>Store name<input id="store-profile-name" required maxlength="100"></label><p class="field-note">Changes the display name while preserving recordings, stock and history.</p><button type="submit">Save store name</button></form><h3 class="work-camera-title">Camera coverage</h3><div id="work-cameras"></div></section>
         </div>
@@ -195,8 +198,17 @@
       </section>
       <!-- Analytics: store level -->
       <section id="showcase-section" class="view" hidden>
-        <div class="panel-head"><div><h2 id="showcase-title">Store aisle</h2><p id="showcase-note" class="showcase-note"></p></div><select id="showcase-picker" aria-label="Recording" hidden></select></div>
         <p id="showcase-empty" class="field-note" hidden>No prepared recording. Run scripts/build_showcase.py to add one.</p>
+        <div id="allcam-view">
+          <div class="stat-cards">
+            <article class="info"><span>Cameras</span><b id="allcam-cameras">0</b></article>
+            <article class="ok"><span>People now</span><b id="allcam-people">0</b></article>
+          </div>
+          <p class="allcam-hint">Recordings play in a loop. Click a camera to open it.</p>
+          <div id="allcam-grid" class="allcam-grid"></div>
+        </div>
+        <div id="showcase-focus" hidden>
+        <div class="panel-head"><div><button id="showcase-back" class="subtle-button">Back to all cameras</button><h2 id="showcase-title">Store aisle</h2></div></div>
         <div id="showcase-stage" class="showcase-grid">
           <div class="showcase-video"><video id="showcase-video" controls muted playsinline preload="auto"></video><canvas id="showcase-canvas"></canvas></div>
           <aside class="showcase-side">
@@ -210,13 +222,14 @@
         </div>
         <section class="panel"><div class="panel-head"><h2>People in frame</h2></div><div id="showcase-chart" class="chart"></div></section>
         <p id="showcase-credit" class="field-note"></p>
+        </div>
       </section>
       <section id="flow-section" class="view" hidden>
         <div class="kpi-row" id="flow-kpis"></div>
         <section class="panel" id="trend-panel" hidden>
           <div class="panel-head"><h2>Day by day</h2><p id="trend-note" class="muted"></p></div>
           <div id="trend-entries" class="chart trend-main"></div>
-          <div class="split trend-small">
+          <div class="split trend-small detail-only">
             <div><h3 class="chart-title">Wait at the peak</h3><div id="trend-wait" class="chart"></div></div>
             <div><h3 class="chart-title">Minutes over the queue limit</h3><div id="trend-queue" class="chart"></div></div>
           </div>
@@ -225,16 +238,17 @@
           <section class="panel"><div class="panel-head"><h2>Footfall by hour</h2><p id="footfall-note" class="muted"></p></div><div id="footfall-chart" class="chart"></div></section>
           <section class="panel"><div class="panel-head"><h2>Queue by hour</h2><p id="queue-note" class="muted"></p></div><div id="queue-chart" class="chart"></div></section>
         </div>
-        <section class="panel" id="quadrant-panel" hidden>
+        <button id="analytics-more" class="subtle-button analytics-more" hidden>Show details</button>
+        <section class="panel detail-only" id="quadrant-panel" hidden>
           <div class="panel-head"><h2>Attention against pickups</h2><p class="muted">Each dot is a shelf. Lines mark the median. A bigger dot means a longer stop.</p></div>
           <div id="quadrant-chart" class="chart"></div>
         </section>
-        <section class="panel"><div class="panel-head"><h2>Shelf performance</h2><p class="muted">Ranked by how many tracks reached each area. Pickups are model candidates, not sales.</p></div><div id="zone-table" class="table-wrap"></div></section>
-        <section class="panel" id="flow-panel" hidden>
+        <section class="panel detail-only"><div class="panel-head"><h2>Shelf performance</h2><p class="muted">Ranked by how many tracks reached each area. Pickups are model candidates, not sales.</p></div><div id="zone-table" class="table-wrap"></div></section>
+        <section class="panel detail-only" id="flow-panel" hidden>
           <div class="panel-head"><h2>Where people go next</h2><p class="muted">The most common moves between areas. Hover an area to follow it.</p></div>
           <div id="flow-chart" class="chart"></div>
         </section>
-        <div class="split">
+        <div class="split detail-only">
           <section class="panel"><div class="panel-head"><h2>From door to till</h2><p class="muted">How far tracks got through the store.</p></div><div id="funnel-chart"></div></section>
           <section class="panel"><div class="panel-head"><h2>Popular routes</h2><p class="muted">The most common three-stop chains.</p></div><div id="route-list"></div></section>
         </div>
@@ -589,17 +603,17 @@
     <label>Operator notes<textarea id="stock-notes" maxlength="500"></textarea></label><p id="stock-error" class="field-note" role="alert"></p><button class="primary" id="stock-save" type="submit">Save stock update</button>
   </form>
 </dialog>
-<script src="/i18n.js?v=10"></script>
-<script src="/i18n.ru.js?v=10"></script>
-<script src="/charts.js?v=10"></script>
-<script src="/workspace.js?v=10"></script>
-<script src="/dashboard.js?v=10"></script>
-<script src="/store.js?v=10"></script>
-<script src="/shelf-operations.js?v=10"></script>
-<script src="/work-orders.js?v=10"></script>
-<script src="/control-room.js?v=10"></script>
-<script src="/showcase.js?v=10"></script>
-<script src="/operations.js?v=10"></script>
+<script src="/i18n.js?v=16"></script>
+<script src="/i18n.ru.js?v=16"></script>
+<script src="/charts.js?v=16"></script>
+<script src="/workspace.js?v=16"></script>
+<script src="/dashboard.js?v=16"></script>
+<script src="/store.js?v=16"></script>
+<script src="/shelf-operations.js?v=16"></script>
+<script src="/work-orders.js?v=16"></script>
+<script src="/control-room.js?v=16"></script>
+<script src="/showcase.js?v=16"></script>
+<script src="/operations.js?v=16"></script>
 
 </body>
 </html>

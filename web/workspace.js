@@ -158,6 +158,8 @@ async function stopLive() {
     throw Error(t('The worker is still stopping. Wait for the current model operation to finish.'))
 }
 async function loadVideo(id) {
+    // The drawn store clip stays out of reach once real footage exists.
+    if (state.videos.length && !state.videos.some(v => v.id === id)) id = state.videos[0].id;
     if (state.dirty && !confirm(t('Discard unsaved geometry edits?'))) return;
     await stopLive();
     if (state.offline) throw Error(t('Wait for full-video analysis or cancel it before changing videos.'));
@@ -954,10 +956,30 @@ window.addEventListener('beforeunload', event => {
         event.returnValue = ''
     }
 });
+// For a shop owner: fewer tabs, details on request, one label for generated numbers.
+function simplifyInterface() {
+    document.body.classList.add('simple');
+    const more = $('nav-more');
+    more.hidden = false;
+    more.onclick = () => more.setAttribute('aria-expanded', document.body.classList.toggle('nav-open'));
+    $('receipt-toggle').hidden = false;
+    $('receipt-toggle').onclick = () => {
+        const open = document.body.classList.toggle('receipt-open');
+        $('receipt-toggle').textContent = t(open ? 'Hide Z-report' : 'Show Z-report');
+    };
+    $('analytics-more').hidden = false;
+    $('analytics-more').onclick = () => {
+        const open = document.body.classList.toggle('show-details');
+        $('analytics-more').textContent = t(open ? 'Hide details' : 'Show details');
+    };
+    document.querySelector('#sim-tape p').textContent = t('Store numbers are generated. Video and boxes are real.');
+}
+
 async function bootWorkspace() {
     const status = await api('/api/status');
     state.includeGenerated = !!status.include_generated;
     state.portableDemo = !!status.portable_demo;
+    if (state.portableDemo) simplifyInterface();
     state.demo = status.demo_library ?? [];
     state.videos = playableVideos(await api('/api/videos'));
     document.querySelector('[data-nav=cameras]').hidden = !state.includeGenerated || state.videos.some(v => !v.source_profile?.simulated);
