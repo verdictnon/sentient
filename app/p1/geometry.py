@@ -11,14 +11,25 @@ def default_geometry(dimensions):
 
 
 def validate_geometry(value: dict, dimensions: list) -> dict:
-    if set(value) != {"geometry_version", "frame_dims_px", "max_gap_ms", "shapes", "active"}:
+    if set(value) != {
+        "geometry_version",
+        "frame_dims_px",
+        "max_gap_ms",
+        "shapes",
+        "active",
+    }:
         raise ValueError("Unexpected geometry fields")
-    if type(value["geometry_version"]) is not int or value["geometry_version"] not in (1,2):
+    if type(value["geometry_version"]) is not int or value["geometry_version"] not in (
+        1,
+        2,
+    ):
         raise ValueError("Unsupported geometry version")
     if value["frame_dims_px"] != dimensions:
         raise ValueError("Geometry dimensions must match the original video frame")
     if type(value["max_gap_ms"]) is not int or value["max_gap_ms"] <= 0:
-        raise ValueError("Maximum observation gap must be positive integer milliseconds")
+        raise ValueError(
+            "Maximum observation gap must be positive integer milliseconds"
+        )
     if not isinstance(value["shapes"], list):
         raise ValueError("Shapes must be an array")
     shapes = {}
@@ -27,6 +38,15 @@ def validate_geometry(value: dict, dimensions: list) -> dict:
         if not isinstance(shape, dict):
             raise ValueError("Every shape must be an object")
         fields = {"id", "name", "kind", "points"}
+        if shape.get("kind") == "shelf" and "product_type" in shape:
+            fields.add("product_type")
+            if (
+                not isinstance(shape["product_type"], str)
+                or len(shape["product_type"]) > 100
+            ):
+                raise ValueError(
+                    "Shelf product type must be text of at most 100 characters"
+                )
         if shape.get("kind") == "line":
             fields.add("hysteresis_px")
             if "positive_means" in shape:
@@ -34,9 +54,19 @@ def validate_geometry(value: dict, dimensions: list) -> dict:
                 fields.add("positive_means")
                 if shape["positive_means"] not in ("enter", "leave", None):
                     raise ValueError("A doorway line can only mean entering or leaving")
-        if set(shape) != fields or shape["kind"] not in ("line", "zone", "queue", "checkout", "shelf", "exit"):
+        if set(shape) != fields or shape["kind"] not in (
+            "line",
+            "zone",
+            "queue",
+            "checkout",
+            "shelf",
+            "exit",
+        ):
             raise ValueError("Invalid shape fields or kind")
-        if any(not isinstance(shape[k], str) or not shape[k].strip() for k in ("id", "name")):
+        if any(
+            not isinstance(shape[k], str) or not shape[k].strip()
+            for k in ("id", "name")
+        ):
             raise ValueError("Each shape requires an ID and name")
         if shape["id"] in shapes:
             raise ValueError("Shape IDs must be unique")
@@ -46,7 +76,9 @@ def validate_geometry(value: dict, dimensions: list) -> dict:
             raise ValueError("Shape points must be pairs of image coordinates")
         points = tuple(tuple(p) for p in shape["points"])
         if shape["kind"] == "line":
-            if type(shape["hysteresis_px"]) not in (int, float) or not math.isfinite(shape["hysteresis_px"]):
+            if type(shape["hysteresis_px"]) not in (int, float) or not math.isfinite(
+                shape["hysteresis_px"]
+            ):
                 raise ValueError("Line hysteresis must be a finite number")
             if len(points) != 2:
                 raise ValueError("Directional lines require two endpoints")
@@ -54,13 +86,24 @@ def validate_geometry(value: dict, dimensions: list) -> dict:
         else:
             Polygon(points)
         if any(not (0 <= x <= width and 0 <= y <= height) for x, y in points):
-            raise ValueError("Shape coordinates must be inside the original image dimensions")
+            raise ValueError(
+                "Shape coordinates must be inside the original image dimensions"
+            )
         shapes[shape["id"]] = shape
     active = value["active"]
-    if not isinstance(active, dict) or set(active) != {"line", "zone", "queue", "checkout"}:
-        raise ValueError("Specify the active entrance, dwell, queue and checkout shapes")
+    if not isinstance(active, dict) or set(active) != {
+        "line",
+        "zone",
+        "queue",
+        "checkout",
+    }:
+        raise ValueError(
+            "Specify the active entrance, dwell, queue and checkout shapes"
+        )
     for kind, key in active.items():
-        if key is None and (kind in ("queue", "checkout") or value["geometry_version"]==2):
+        if key is None and (
+            kind in ("queue", "checkout") or value["geometry_version"] == 2
+        ):
             continue
         if not isinstance(key, str) or key not in shapes or shapes[key]["kind"] != kind:
             raise ValueError(f"Select an active {kind} shape")
@@ -68,14 +111,31 @@ def validate_geometry(value: dict, dimensions: list) -> dict:
         raise ValueError("Queue and checkout service areas must be enabled together")
     # Unconfigured legacy kernel inputs stay outside the image. New live/shelf
     # analytics use only explicitly drawn shapes; missing entrances stay unknown.
-    line = shapes[active["line"]] if active["line"] else {"points":[[-20,-20],[-20,-10]],"hysteresis_px":5}
-    zone = shapes[active["zone"]] if active["zone"] else {"points":[[-20,-20],[-10,-20],[-10,-10],[-20,-10]]}
-    result = {"application_config_version": 1, "line": {
-        "start": line["points"][0], "end": line["points"][1], "hysteresis_px": line["hysteresis_px"],
-    }, "zone": zone["points"], "max_gap_ms": value["max_gap_ms"]}
+    line = (
+        shapes[active["line"]]
+        if active["line"]
+        else {"points": [[-20, -20], [-20, -10]], "hysteresis_px": 5}
+    )
+    zone = (
+        shapes[active["zone"]]
+        if active["zone"]
+        else {"points": [[-20, -20], [-10, -20], [-10, -10], [-20, -10]]}
+    )
+    result = {
+        "application_config_version": 1,
+        "line": {
+            "start": line["points"][0],
+            "end": line["points"][1],
+            "hysteresis_px": line["hysteresis_px"],
+        },
+        "zone": zone["points"],
+        "max_gap_ms": value["max_gap_ms"],
+    }
     if active["queue"] is not None:
-        result["queue"] = {"waiting_zone": shapes[active["queue"]]["points"],
-                           "service_zone": shapes[active["checkout"]]["points"]}
+        result["queue"] = {
+            "waiting_zone": shapes[active["queue"]]["points"],
+            "service_zone": shapes[active["checkout"]]["points"],
+        }
     return result
 
 

@@ -14,6 +14,9 @@ const ops = {
     health: null
 };
 const viewInfo = {
+    wall: ['Control room', 'Cameras, activity and store layout.'],
+    work: ['Operations board', 'Assign, track and close store work.'],
+    shelves: ['Shelves', 'Stock checks, refill work and shelf activity.'],
     store: ['Store', 'The day on one screen.'],
     overview: ['Monitor', 'Watch a camera and its signals.'],
     analytics: ['Analytics', 'Traffic, queues, shelves and routes.'],
@@ -22,9 +25,13 @@ const viewInfo = {
     reports: ['Report centre', 'Shift, daily and monthly reports with traceable data.'],
     geometry: ['Camera setup', 'Map areas and place recordings on the calendar.'],
     system: ['System & models', 'Health, rules and model limits.'],
-    help: ['Demo guide', 'How to get the most out of each view.']
+    help: ['Operator guide', 'How to get the most out of each view.']
 };
 const VIEW_SECTIONS = {
+    wall: ['control-room-section'],
+    work: ['work-orders-section'],
+    shelves: ['shelf-operations-section'],
+    cameras: ['camera-simulation-section'],
     store: ['store-section'],
     overview: ['filmstrip', 'monitor-work'],
     tracking: ['filmstrip', 'monitor-work', 'tracking-section'],
@@ -89,6 +96,7 @@ function exportRows(rows, columns, name) {
 
 function navigate(name) {
     if (!viewInfo[name]) name = 'store';
+    if (ops.view === 'wall' && name !== 'wall') pauseControlRoom().catch(e=>toast(e.message,true));
     ops.view = name;
     document.body.dataset.view = name;
     const [label, subtitle] = viewInfo[name];
@@ -102,6 +110,11 @@ function navigate(name) {
     for (const id of ALL_SECTIONS) $(id).hidden = !visible.has(id);
     if (name === 'geometry' || name === 'help') tab(name);
     else if (state.tab !== 'results') tab('results');
+    if (name !== 'cameras') $('sim-player').pause();
+    if (name === 'wall') openControlRoom().catch(e=>showWallError(e.message));
+    if (name === 'work') loadWorkOrders().catch(e => toast(e.message, true));
+    if (name === 'shelves') loadShelfOperations().catch(e => toast(e.message, true));
+    if (name === 'cameras') loadCameraSimulation().catch(e => toast(e.message, true));
     if (name === 'reports') refreshWorkspace().catch(e => toast(e.message, true));
     if (name === 'system') refreshHealth().catch(e => toast(e.message, true));
     if (name === 'analytics' || name === 'tracking' || name === 'incidents') refreshInsights().catch(e => toast(e.message, true));
@@ -812,7 +825,7 @@ function fillReports() {
     $('report-zone-note').textContent = t('Calendar timezone: {zone}. Undated footage appears only in selected-recording reports.', {
         zone: ops.workspace.settings.timezone
     });
-    $('report-library').innerHTML = ops.workspace.reports.map(r => `<article class="report-file"><h3>${esc(r.title)}</h3>${r.simulated?`<p class="report-flag">${esc(t('Simulated'))}</p>`:''}<p>${esc(new Date(r.created_at).toLocaleString(locale()))}, ${esc(t('{n} recordings',{n:r.recordings}))}</p><p>${esc(t('{a} local track IDs, {b} candidates',{a:r.summary.tracks,b:r.summary.pickups??t('unscored')}))}${r.coverage_status==='no_matching_recordings'?esc(', '+t('no matching coverage')):''}</p><div class="report-downloads">${['pdf','docx','csv','json'].map(f=>`<a href="/api/ops/reports/${r.id}/${f}" download>${f.toUpperCase()}</a>`).join('')}</div></article>`).join('') || empty('Your report library is empty', 'Generate a report and it stays here.');
+    $('report-library').innerHTML = ops.workspace.reports.map(r => `<article class="report-file"><h3>${esc(title({display_name:r.title}))}</h3>${r.simulated?`<p class="report-flag">${esc(t('Simulated'))}</p>`:''}<p>${esc(new Date(r.created_at).toLocaleString(locale()))}, ${esc(t('{n} recordings',{n:r.recordings}))}</p><p>${esc(t('{a} local track IDs, {b} candidates',{a:r.summary.tracks,b:r.summary.pickups??t('unscored')}))}${r.coverage_status==='no_matching_recordings'?esc(', '+t('no matching coverage')):''}</p><div class="report-downloads">${['pdf','docx','csv','json'].map(f=>`<a href="/api/ops/reports/${r.id}/${f}" download>${f.toUpperCase()}</a>`).join('')}</div></article>`).join('') || empty('Your report library is empty', 'Generate a report and it stays here.');
 }
 $('report-store').onchange = fillReports;
 $('report-select-all').onclick = () => document.querySelectorAll('[data-report-source]').forEach(e => {
@@ -1045,6 +1058,7 @@ async function bootOperations() {
     await bootWorkspace();
     await refreshWorkspace();
     ops.booted = true;
+    if (state.includeGenerated) viewInfo.cameras = ['Camera simulation', 'Synchronized views of the simulated store.'];
     const date = currentDateInZone(ops.workspace.settings.timezone);
     $('report-date').value = date;
     $('report-month').value = date.slice(0, 7);
@@ -1055,7 +1069,8 @@ async function bootOperations() {
         print: true
     });
     if (store.demo.status === 'building') startDemoWatch();
-    navigate(requested && viewInfo[requested] ? requested : savedRun ? 'overview' : 'store');
+    const cameras = await api('/api/control-room/manifest');
+    navigate(requested && viewInfo[requested] ? requested : cameras.stores.length ? 'wall' : savedRun ? 'overview' : 'store');
     syncOperations();
 }
 

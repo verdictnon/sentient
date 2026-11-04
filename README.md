@@ -1,32 +1,28 @@
-# Sentient
+# Sentient · Aster Market
 
 Sentient reads footage from a shop's cameras and answers what a manager asks at
 closing time: how many people came in, when the line ran too long, which shelves
 people stopped at, and which pickups never reached a till. It runs on one computer
 and the video stays there.
 
-## Try it
+## Run it
 
-You need Python 3.12 or 3.13. No footage, models or GPU.
+With the installed models and recordings:
 
 ```sh
-./run_demo.sh     # macOS or Linux
-run_demo.bat      # Windows
+.venv-app/bin/python scripts/start_local_workspace.py
 ```
 
-The first run installs the application and builds a simulated store: two weeks of
-traffic and a two-minute camera view. That took 100 seconds on a clean Linux copy
-and leaves a 380 MB Python environment. After that it starts at once and needs no
-network. Add `--rebuild` to move the simulated days up to yesterday. The Windows
-launcher has not been run yet.
-
-Everything simulated says so: the hazard tape on screen, the stamp in the video,
-the Z-report and every exported document. It goes through the same analysis code
-as real recordings, and the two never share a rollup or a report.
-
-[The pitch run-through](docs/PITCH_DEMO.md) is a three-minute script in Russian.
+Open **http://127.0.0.1:8766**. The control room automatically plays HD recordings
+from one store and runs person tracking and pickup analysis. Models, footage and
+runtime data are kept outside Git. Dependencies are in `requirements-app.txt`.
 
 ## What you get
+
+- **Control room:** automatic same-store HD playlists with live person/pickup
+  inference, clickable camera map, saved layout edits and signal-to-evidence
+  navigation. Recorded footage is labelled explicitly; no public CCTV feed is
+  implied. The quieter interface keeps explanations behind an info toggle.
 
 - **Store:** one day or week on one screen, with a plain summary, a till-roll
   Z-report with PDF, a heat, route or zone map, a week grid and what to do next.
@@ -37,6 +33,16 @@ as real recordings, and the two never share a rollup or a report.
   from door to till, and the most common routes.
 - **Cameras, Tracks, Investigations and Reports:** source-paced analysis, track
   histories, operator reviews, and PDF, Word, CSV and JSON reports on a schedule.
+- **Shelves:** separate area and product labels, confirmed stock counts, capacity,
+  refill thresholds, a prioritized refill queue and an auditable movement history.
+  Rank shelves by visits, tracks or total observed dwell; open their source paths.
+- **Overall PDF:** shelf activity, popular routes, investigations and a frozen
+  stock snapshot at generation time. Reports remain available in Report centre.
+- **Operations board:** persistent assigned work, due times, refill/audit tasks,
+  scheduled shelf checks, atomic stock completion and a complete work history.
+- **Shift handover:** download active work, shelf counts and completed tasks as
+  Markdown or export task CSV. New reports freeze the current workload.
+- **Store identity:** editable display names without changing footage or history.
 - Light and dark themes, in English and Russian.
 
 ## Real recordings
@@ -61,7 +67,7 @@ waiting and checkout areas. **Demo guide** explains the workflow inside the
 application. Shelf visits, observed dwell, occupancy and nearby pickup alerts appear
 together and export to CSV/JSON.
 
-Read [the demo guide](docs/DEMO_GUIDE.md) for operation, geometry, timing and
+Read [the operator guide](docs/DEMO_GUIDE.md) for operation, geometry, timing and
 metric definitions. [Data sources](docs/DATA_SOURCES.md) records the footage
 search and access constraints.
 

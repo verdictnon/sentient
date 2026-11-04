@@ -17,7 +17,10 @@ const STATUS_ORDER = ['left_without_checkout', 'lost_before_checkout', 'still_in
 
 function storeName(row) {
     if (!row) return '';
-    if (row.simulated) return t('Demo store');
+    if (row.name) return row.name;
+    const known = workBoard.data?.stores?.find(s=>s.id===row.id) ?? store.data?.stores?.find(s=>s.id===row.id);
+    if (known?.name) return known.name;
+    if (row.simulated || ['demo-store','aster-market'].includes(row.id)) return t('Aster Market');
     return row.id.replace(/[-_]+/g, ' ').replace(/^./, c => c.toUpperCase());
 }
 
@@ -62,6 +65,7 @@ async function loadStore(options = {}) {
     store.loading = true;
     document.body.classList.add('store-loading');
     try {
+        if (!store.id && !state.includeGenerated && ops.workspace?.recordings.some(v=>v.store_id==='carr-unej')) store.id='carr-unej';
         const params = new URLSearchParams();
         if (store.id) params.set('store_id', store.id);
         if (store.day) {
@@ -101,8 +105,9 @@ function renderPeriod() {
 }
 
 function setSimulatedTape() {
-    const onStore = ['store', 'analytics'].includes(ops.view) && store.data?.basis === 'simulated',
-        onCamera = !['store', 'reports', 'system', 'help'].includes(ops.view) && state.video?.source_profile?.simulated;
+    if (!state.includeGenerated) { $('sim-tape').hidden = true; return; }
+    const onStore = (ops.view === 'work' && workBoard.data?.store?.simulated) || (['store', 'analytics'].includes(ops.view) && store.data?.basis === 'simulated') || (ops.view === 'shelves' && shelfOps.data?.simulated) || (ops.view === 'cameras' && cameraSim.data?.available),
+        onCamera = !['store', 'work', 'shelves', 'cameras', 'reports', 'system', 'help'].includes(ops.view) && state.video?.source_profile?.simulated;
     $('sim-tape').hidden = !(onStore || onCamera);
 }
 
@@ -548,9 +553,14 @@ function drawFloorOverlay() {
 }
 
 function renderOnboarding() {
+    if (!state.includeGenerated) {
+        $('store-empty').innerHTML = `<h2>${esc(t('Add your store recordings'))}</h2><button id="real-import" class="primary">${esc(t('Add video'))}</button>`;
+        $('real-import').onclick=()=>$('import-open').click();
+        return;
+    }
     const demo = store.demo ?? {};
     const building = demo.status === 'building';
-    $('store-empty').innerHTML = `<h2>${esc(t('See a whole store before installing anything'))}</h2><p>${esc(t('Build a simulated store with two weeks of traffic and one camera. It needs no footage, models or GPU, and it stays clearly labelled as simulated.'))}</p>${building?`<div class="build-progress"><progress value="${demo.progress??0}" max="1"></progress><span>${esc(buildStage(demo.stage))}</span></div>`:`<div class="toolbar"><button id="demo-build" class="primary">${esc(t('Build the demo store'))}</button><button id="demo-import">${esc(t('Add my own video'))}</button></div>`}${demo.error?`<p class="field-note">${esc(demo.error)}</p>`:''}`;
+    $('store-empty').innerHTML = `<h2>${esc(t('See a whole store before installing anything'))}</h2><p>${esc(t('Build a simulated store with two weeks of traffic and one camera. It needs no footage, models or GPU, and it stays clearly labelled as simulated.'))}</p>${building?`<div class="build-progress"><progress value="${demo.progress??0}" max="1"></progress><span>${esc(buildStage(demo.stage))}</span></div>`:`<div class="toolbar"><button id="demo-build" class="primary">${esc(t('Prepare Aster Market'))}</button><button id="demo-import">${esc(t('Add my own video'))}</button></div>`}${demo.error?`<p class="field-note">${esc(demo.error)}</p>`:''}`;
     if (!building) {
         $('demo-build').onclick = task(startDemoBuild);
         $('demo-import').onclick = () => $('import-open').click();
@@ -653,7 +663,7 @@ function renderZoneTable(d) {
         $('zone-table').innerHTML = `<p class="empty-chart">${esc(t('Map shelf areas in Camera setup to rank them.'))}</p>`;
         return;
     }
-    $('zone-table').innerHTML = `<table class="data-table"><thead><tr><th>${esc(t('Area'))}</th><th class="wide">${esc(t('Tracks'))}</th><th>${esc(t('Time per visit'))}</th><th>${esc(t('Pickups'))}</th><th>${esc(t('Pickup rate'))}</th><th>${esc(t('To review'))}</th></tr></thead><tbody>${rows.map(z=>`<tr><td>${esc(t(z.name))}</td><td class="wide"><span class="bar-cell"><span class="bar-fill" style="width:${z.tracks/top*100}%"></span></span><span class="bar-value">${number(z.tracks)}</span></td><td>${z.dwell_per_visit_s===null?'—':Math.round(z.dwell_per_visit_s)+' '+esc(t('s'))}</td><td>${number(z.pickups)}</td><td>${z.pickup_rate===null?'—':Math.round(z.pickup_rate*100)+'%'}</td><td>${z.needs_review?`<span class="count-flag">${number(z.needs_review)}</span>`:'—'}</td></tr>`).join('')}</tbody></table>`;
+    $('zone-table').innerHTML = `<table class="data-table"><thead><tr><th>${esc(t('Area'))}</th><th class="wide">${esc(t('Tracks'))}</th><th>${esc(t('Visits'))}</th><th>${esc(t('Total time near shelf'))}</th><th>${esc(t('Time per visit'))}</th><th>${esc(t('Pickups'))}</th><th>${esc(t('Pickup rate'))}</th><th>${esc(t('To review'))}</th></tr></thead><tbody>${rows.map(z=>`<tr><td>${esc(t(z.name))}${z.product_type?`<small class="muted">${esc(t(z.product_type))}</small>`:""}</td><td class="wide"><span class="bar-cell"><span class="bar-fill" style="width:${z.tracks/top*100}%"></span></span><span class="bar-value">${number(z.tracks)}</span></td><td>${number(z.visits)}</td><td>${sec(z.dwell_s)}</td><td>${z.dwell_per_visit_s===null?'—':Math.round(z.dwell_per_visit_s)+' '+esc(t('s'))}</td><td>${number(z.pickups)}</td><td>${z.pickup_rate===null?'—':Math.round(z.pickup_rate*100)+'%'}</td><td>${z.needs_review?`<span class="count-flag">${number(z.needs_review)}</span>`:'—'}</td></tr>`).join('')}</tbody></table>`;
 }
 
 function renderFunnel(d) {

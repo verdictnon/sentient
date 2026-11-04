@@ -1,10 +1,33 @@
 """Generate durable management reports from an immutable, measured report snapshot."""
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 import textwrap
 from xml.sax.saxutils import escape
 
 RU = {
+    "Store / work order": "Магазин / задача",
+    "Status": "Статус",
+    "Open": "Открыто",
+    "In progress": "В работе",
+    "Owner": "Ответственный",
+    "Refill shelf": "Пополнить полку",
+    "Check shelf stock": "Пересчитать остатки",
+    "Store task": "Задача магазина",
+    "Due time": "Срок",
+    "Unassigned": "Не назначено",
+    "open": "Открыто",
+    "in_progress": "В работе",
+    "Open work at generation time": "Открытые задачи на момент отчёта",
+    "Shelf / product": "Полка / товары",
+    "Stock / capacity": "Остаток / ёмкость",
+    "Refill at": "Порог",
+    "Add to fill": "Добавить",
+    "Shelf stock at generation time": "Остатки полок на момент отчёта",
+    "Popular routes": "Популярные маршруты",
+    "Route and camera": "Маршрут и камера",
+    "Operator-confirmed stock at report generation, separate from the activity period. Pickup predictions do not change inventory.": "Остатки подтверждены оператором на момент создания отчёта и не относятся к периоду активности. Предсказания подборов не изменяют остатки.",
     "Unavailable": "Нет данных",
     "Selected recording collection": "Выбранные записи",
     "Recording and camera": "Запись и камера",
@@ -46,13 +69,22 @@ RU = {
     "Track counts are summed camera-local IDs, not deduplicated customers.": "Треки это сумма идентификаторов внутри камер, а не уникальные покупатели.",
     "Pickup candidates require review and do not establish purchases, payment or theft.": "Подборы требуют проверки и не подтверждают покупку, оплату или кражу.",
     "One completed run per recording is used; area metrics use the specified saved geometry.": "Для каждой записи берётся один завершённый анализ и указанная разметка.",
-    "Simulated data. The demo store generated these numbers; nothing here was measured in a shop.": "Симуляция. Эти числа сгенерировал демо-магазин, в реальном магазине ничего не измерялось.",
+    "Simulated data. These numbers are generated, not measured in a shop.": "Симуляция. Эти числа сгенерировал симулятор, в реальном магазине ничего не измерялось.",
     "Collection report: footage is selected explicitly and is not attributed to a calendar shift or month.": "Отчёт по выбранным записям: они не привязаны к смене или месяцу.",
     "Period selection uses operator-assigned recording times; samples outside the selected interval are excluded.": "Период считается по времени, заданному оператором. Данные вне периода исключены.",
     "No analysed recordings match this scope. This is an empty coverage report, not evidence of zero store activity.": "За этот период нет проанализированных записей. Это отсутствие данных, а не отсутствие покупателей.",
-    "Bakery": "Хлеб", "Dairy": "Молочка", "Drinks": "Напитки", "Fruit & veg": "Овощи и фрукты",
-    "Household": "Бытовая химия", "Snacks": "Снеки", "Grocery": "Бакалея", "Sweets": "Сладости",
-    "Tea & coffee": "Чай и кофе", "Promo stand": "Акции", "Queue": "Очередь", "Checkout": "Касса",
+    "Bakery": "Хлеб",
+    "Dairy": "Молочка",
+    "Drinks": "Напитки",
+    "Fruit & veg": "Овощи и фрукты",
+    "Household": "Бытовая химия",
+    "Snacks": "Снеки",
+    "Grocery": "Бакалея",
+    "Sweets": "Сладости",
+    "Tea & coffee": "Чай и кофе",
+    "Promo stand": "Акции",
+    "Queue": "Очередь",
+    "Checkout": "Касса",
     "Overhead camera 01": "Камера 01 над залом",
 }
 
@@ -135,7 +167,9 @@ def check_rows(report):
 
 def sections(report):
     tr = translator(report)
-    recordings = [[tr("Recording and camera"), tr("Tracks"), tr("Pickups"), tr("Observed time")]]
+    recordings = [
+        [tr("Recording and camera"), tr("Tracks"), tr("Pickups"), tr("Observed time")]
+    ]
     for r in report["recordings"]:
         recordings.append(
             [
@@ -145,18 +179,35 @@ def sections(report):
                 duration(r["summary"]["observed_seconds"], tr),
             ]
         )
-    areas = [[tr("Area and camera"), tr("Tracks"), tr("Visits"), tr("Observed dwell"), tr("Pickups")]]
+    areas = [
+        [
+            tr("Area and camera"),
+            tr("Tracks"),
+            tr("Visits"),
+            tr("Observed dwell"),
+            tr("Pickups"),
+        ]
+    ]
     for a in sorted(report["areas"], key=lambda a: -a["unique_tracks"]):
         areas.append(
             [
-                tr(a["name"]) + "\n" + a["camera_id"],
+                tr(a["name"])
+                + (
+                    " / " + a["product_type"]
+                    if a.get("product_type") and a["product_type"] != a["name"]
+                    else ""
+                )
+                + "\n"
+                + a["camera_id"],
                 a["unique_tracks"],
                 a["visits"],
                 duration(a["observed_dwell_seconds"], tr),
                 a["pickup_alerts"],
             ]
         )
-    incidents = [[tr("Signal and source time"), tr("Camera"), tr("Review"), tr("Operator notes")]]
+    incidents = [
+        [tr("Signal and source time"), tr("Camera"), tr("Review"), tr("Operator notes")]
+    ]
     for e in report["incidents"][:50]:
         incidents.append(
             [
@@ -167,7 +218,12 @@ def sections(report):
             ]
         )
     dates = [
-        [tr("Recording date"), tr("Track IDs present"), tr("Pickup candidates"), tr("Recordings")]
+        [
+            tr("Recording date"),
+            tr("Track IDs present"),
+            tr("Pickup candidates"),
+            tr("Recordings"),
+        ]
     ] + [
         [d["date"], d["tracks"], d["pickups"], d["recordings"]] for d in report["daily"]
     ]
@@ -285,6 +341,8 @@ def build_pdf(report, path):
         para(opening(report)),
         para(traffic_line(report)),
     ]
+    if len(report["daily"]) == 1:
+        story.append(para(tr("Activity by recording date") + ": " + report["daily"][0]["date"], "MutedS"))
     if report.get("notes"):
         story.extend([para(tr("Operator summary"), "HeadS"), para(report["notes"])])
 
@@ -327,7 +385,70 @@ def build_pdf(report, path):
     if len(check_rows(report)) > 1:
         table(tr("Pickups against the till"), check_rows(report), [348, 120])
     table(tr("Area performance"), areas, [215, 55, 45, 88, 65])
-    table(tr("Activity by recording date"), dates, [150, 110, 110, 98])
+    stock_rows = [
+        [
+            tr("Shelf / product"),
+            tr("Stock / capacity"),
+            tr("Refill at"),
+            tr("Add to fill"),
+        ]
+    ]
+    seen = set()
+    for snapshot in report.get("shelf_operations", []):
+        for shelf in snapshot["shelves"]:
+            key = (snapshot["store_id"], snapshot["camera_id"], shelf["id"])
+            if key in seen:
+                continue
+            seen.add(key)
+            stock = shelf["stock"]
+            stock_rows.append(
+                [
+                    tr(shelf["name"])
+                    + (
+                        " / " + shelf["product_type"]
+                        if shelf["product_type"]
+                        and shelf["product_type"] != shelf["name"]
+                        else ""
+                    )
+                    + "\n"
+                    + snapshot["camera_id"],
+                    f"{stock['on_hand']} / {stock['capacity']}" if stock else None,
+                    stock["reorder_at"] if stock else None,
+                    shelf["refill_units"],
+                ]
+            )
+    if len(stock_rows) > 1:
+        table(tr("Shelf stock at generation time"), stock_rows, [234, 90, 72, 72])
+        story.append(
+            para(
+                tr(
+                    "Operator-confirmed stock at report generation, separate from the activity period. Pickup predictions do not change inventory."
+                ),
+                "MutedS",
+            )
+        )
+    route_rows = [[tr("Route and camera"), tr("Tracks")]]
+    for recording in report["recordings"]:
+        for route in recording.get("routes", {}).get("routes", [])[:8]:
+            route_rows.append(
+                [
+                    " > ".join(tr(step["name"]) for step in route["steps"])
+                    + "\n"
+                    + recording["camera_id"],
+                    route["count"],
+                ]
+            )
+    if len(route_rows) > 1:
+        table(tr("Popular routes"), route_rows, [388, 80])
+    tasks = [[tr("Store / work order"), tr("Status"), tr("Owner"), tr("Due time")]]
+    for snapshot in report.get("work_orders", []):
+        for task in snapshot["tasks"]:
+            if task["status"] in ("open", "in_progress"):
+                tasks.append([snapshot["name"] + "\n" + tr({"refill":"Refill shelf", "audit":"Check shelf stock", "manual":"Store task"}[task["kind"]]) + ": " + task["title"], tr({"open":"Open","in_progress":"In progress"}[task["status"]]), task["assignee"] or tr("Unassigned"), datetime.fromisoformat(task["due_at"]).astimezone(ZoneInfo(report["period"]["timezone"])).strftime("%Y-%m-%d\n%H:%M") if task.get("due_at") else tr("Unavailable")])
+    if len(tasks) > 1:
+        table(tr("Open work at generation time"), tasks, [210, 65, 85, 108])
+    if len(report["daily"]) != 1:
+        table(tr("Activity by recording date"), dates, [150, 110, 110, 98])
     table(tr("Signals and operator review"), incidents, [160, 95, 65, 148])
     if len(report["incidents"]) > 50:
         story.append(
@@ -523,28 +644,69 @@ def build_docx(report, path):
 # the document a shift manager would tear off, and it prints on any narrow printer.
 Z_TEXT = {
     "en": dict(
-        title="FLOOR Z-REPORT", simulated="SIMULATED, NOT MEASURED", undated="UNDATED RECORDINGS",
-        came_in="CAME IN", left="LEFT", most="MOST IN STORE", busiest="BUSIEST HOUR", stay="TIME IN STORE",
-        queue="QUEUE", longest="LONGEST LINE", over="OVER THE LIMIT", peak_wait="WAIT AT THE PEAK",
-        gave_up="GAVE UP WAITING", check="PICKUPS AGAINST THE TILL", pickups="PICKUP CANDIDATES",
-        reached="REACHED A TILL", passed="LEFT WITHOUT A TILL", lost="TRACK LOST", value="VALUE TO REVIEW",
-        todo="WHAT TO DO", minutes="MIN", hours="H",
+        title="FLOOR Z-REPORT",
+        simulated="SIMULATED, NOT MEASURED",
+        undated="UNDATED RECORDINGS",
+        came_in="CAME IN",
+        left="LEFT",
+        most="MOST IN STORE",
+        busiest="BUSIEST HOUR",
+        stay="TIME IN STORE",
+        queue="QUEUE",
+        longest="LONGEST LINE",
+        over="OVER THE LIMIT",
+        peak_wait="WAIT AT THE PEAK",
+        gave_up="GAVE UP WAITING",
+        check="PICKUPS AGAINST THE TILL",
+        pickups="PICKUP CANDIDATES",
+        reached="REACHED A TILL",
+        passed="LEFT WITHOUT A TILL",
+        lost="TRACK LOST",
+        value="VALUE TO REVIEW",
+        todo="WHAT TO DO",
+        minutes="MIN",
+        hours="H",
         note="Review candidates before acting. A pickup without a till is a reason to look, not proof of theft.",
     ),
     "ru": dict(
-        title="Z-ОТЧЁТ ЗАЛА", simulated="СИМУЛЯЦИЯ, НЕ ИЗМЕРЕНИЯ", undated="ЗАПИСИ БЕЗ ДАТЫ",
-        came_in="ВОШЛО", left="ВЫШЛО", most="МАКСИМУМ В ЗАЛЕ", busiest="ЧАС ПИК", stay="ВРЕМЯ В ЗАЛЕ",
-        queue="ОЧЕРЕДЬ", longest="САМАЯ ДЛИННАЯ", over="ВЫШЕ ЛИМИТА", peak_wait="ЖДУТ В ЧАС ПИК",
-        gave_up="НЕ ДОЖДАЛИСЬ", check="СВЕРКА С КАССОЙ", pickups="ПОДБОРЫ",
-        reached="ДОШЁЛ ДО КАССЫ", passed="МИМО КАССЫ", lost="ТРЕК ОБОРВАЛСЯ", value="НА ПРОВЕРКЕ",
-        todo="ЧТО СДЕЛАТЬ", minutes="МИН", hours="Ч",
+        title="Z-ОТЧЁТ ЗАЛА",
+        simulated="СИМУЛЯЦИЯ, НЕ ИЗМЕРЕНИЯ",
+        undated="ЗАПИСИ БЕЗ ДАТЫ",
+        came_in="ВОШЛО",
+        left="ВЫШЛО",
+        most="МАКСИМУМ В ЗАЛЕ",
+        busiest="ЧАС ПИК",
+        stay="ВРЕМЯ В ЗАЛЕ",
+        queue="ОЧЕРЕДЬ",
+        longest="САМАЯ ДЛИННАЯ",
+        over="ВЫШЕ ЛИМИТА",
+        peak_wait="ЖДУТ В ЧАС ПИК",
+        gave_up="НЕ ДОЖДАЛИСЬ",
+        check="СВЕРКА С КАССОЙ",
+        pickups="ПОДБОРЫ",
+        reached="ДОШЁЛ ДО КАССЫ",
+        passed="МИМО КАССЫ",
+        lost="ТРЕК ОБОРВАЛСЯ",
+        value="НА ПРОВЕРКЕ",
+        todo="ЧТО СДЕЛАТЬ",
+        minutes="МИН",
+        hours="Ч",
         note="Проверьте запись перед любыми действиями. Подбор мимо кассы повод посмотреть, а не доказательство кражи.",
     ),
 }
 CODE39 = {
-    "0": "nnnwwnwnn", "1": "wnnwnnnnw", "2": "nnwwnnnnw", "3": "wnwwnnnnn", "4": "nnnwwnnnw",
-    "5": "wnnwwnnnn", "6": "nnwwwnnnn", "7": "nnnwnnwnw", "8": "wnnwnnwnn", "9": "nnwwnnwnn",
-    "Z": "nwwnwnnnn", "*": "nwnnwnwnn",
+    "0": "nnnwwnwnn",
+    "1": "wnnwnnnnw",
+    "2": "nnwwnnnnw",
+    "3": "wnwwnnnnn",
+    "4": "nnnwwnnnw",
+    "5": "wnnwwnnnn",
+    "6": "nnwwwnnnn",
+    "7": "nnnwnnwnw",
+    "8": "wnnwnnwnn",
+    "9": "nnwwnnwnn",
+    "Z": "nwwnwnnnn",
+    "*": "nwnnwnwnn",
 }
 CURRENCY = dict(KZT="₸", USD="$", EUR="€", RUB="₽")
 
@@ -624,7 +786,7 @@ def build_z_report(data, lang, target):
     name = "SENTIENT"
     centre(name, True)
     store = data["store"]
-    centre(("ДЕМО-МАГАЗИН" if lang == "ru" else "DEMO STORE") if store["simulated"] else store["id"].upper())
+    centre(store.get("name", store["id"]).upper())
     centre(text["title"], True)
     if data["mode"] == "calendar":
         centre(data["end"] if data["span_days"] == 1 else f"{data['start']} / {data['end']}")

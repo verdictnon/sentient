@@ -40,16 +40,61 @@ RULES = dict(dwell_limit_s=90, crowd_limit=7, queue_limit=4, avg_item_value=1800
 ZONES = (
     ("shelf-bakery", "Bakery", "shelf", ((64, 76), (340, 76), (340, 112), (64, 112))),
     ("shelf-dairy", "Dairy", "shelf", ((350, 76), (770, 76), (770, 112), (350, 112))),
-    ("shelf-drinks", "Drinks", "shelf", ((780, 76), (1210, 76), (1210, 112), (780, 112))),
-    ("shelf-produce", "Fruit & veg", "shelf", ((70, 130), (122, 130), (122, 470), (70, 470))),
-    ("shelf-household", "Household", "shelf", ((1160, 130), (1210, 130), (1210, 470), (1160, 470))),
-    ("shelf-snacks", "Snacks", "shelf", ((316, 168), (488, 168), (488, 452), (316, 452))),
-    ("shelf-grocery", "Grocery", "shelf", ((540, 168), (712, 168), (712, 452), (540, 452))),
-    ("shelf-sweets", "Sweets", "shelf", ((764, 168), (936, 168), (936, 452), (764, 452))),
-    ("shelf-tea", "Tea & coffee", "shelf", ((988, 168), (1150, 168), (1150, 452), (988, 452))),
-    ("shelf-promo", "Promo stand", "shelf", ((236, 510), (360, 510), (360, 544), (236, 544))),
+    (
+        "shelf-drinks",
+        "Drinks",
+        "shelf",
+        ((780, 76), (1210, 76), (1210, 112), (780, 112)),
+    ),
+    (
+        "shelf-produce",
+        "Fruit & veg",
+        "shelf",
+        ((70, 130), (122, 130), (122, 470), (70, 470)),
+    ),
+    (
+        "shelf-household",
+        "Household",
+        "shelf",
+        ((1160, 130), (1210, 130), (1210, 470), (1160, 470)),
+    ),
+    (
+        "shelf-snacks",
+        "Snacks",
+        "shelf",
+        ((316, 168), (488, 168), (488, 452), (316, 452)),
+    ),
+    (
+        "shelf-grocery",
+        "Grocery",
+        "shelf",
+        ((540, 168), (712, 168), (712, 452), (540, 452)),
+    ),
+    (
+        "shelf-sweets",
+        "Sweets",
+        "shelf",
+        ((764, 168), (936, 168), (936, 452), (764, 452)),
+    ),
+    (
+        "shelf-tea",
+        "Tea & coffee",
+        "shelf",
+        ((988, 168), (1150, 168), (1150, 452), (988, 452)),
+    ),
+    (
+        "shelf-promo",
+        "Promo stand",
+        "shelf",
+        ((236, 510), (360, 510), (360, 544), (236, 544)),
+    ),
     ("queue-main", "Queue", "queue", ((372, 552), (636, 552), (636, 664), (372, 664))),
-    ("checkout-main", "Checkout", "checkout", ((640, 552), (806, 552), (806, 664), (640, 664))),
+    (
+        "checkout-main",
+        "Checkout",
+        "checkout",
+        ((640, 552), (806, 552), (806, 664), (640, 664)),
+    ),
 )
 ENTRANCE_LINE = ((220.0, 670.0), (90.0, 670.0))
 EXIT_LINE = ((1030.0, 670.0), (1160.0, 670.0))
@@ -94,15 +139,65 @@ LOOP_ORDER = (
     "shelf-household",
 )
 
-WEEKDAY_CURVE = {8: 18, 9: 28, 10: 32, 11: 37, 12: 56, 13: 60, 14: 41, 15: 37, 16: 46, 17: 80, 18: 108, 19: 100, 20: 62, 21: 30}
-WEEKEND_CURVE = {8: 13, 9: 27, 10: 47, 11: 69, 12: 85, 13: 80, 14: 64, 15: 56, 16: 58, 17: 76, 18: 88, 19: 76, 20: 48, 21: 26}
+WEEKDAY_CURVE = {
+    8: 18,
+    9: 28,
+    10: 32,
+    11: 37,
+    12: 56,
+    13: 60,
+    14: 41,
+    15: 37,
+    16: 46,
+    17: 80,
+    18: 108,
+    19: 100,
+    20: 62,
+    21: 30,
+}
+WEEKEND_CURVE = {
+    8: 13,
+    9: 27,
+    10: 47,
+    11: 69,
+    12: 85,
+    13: 80,
+    14: 64,
+    15: 56,
+    16: 58,
+    17: 76,
+    18: 88,
+    19: 76,
+    20: 48,
+    21: 26,
+}
 DAY_SCALE = {0: 0.88, 1: 0.84, 2: 0.9, 3: 0.92, 4: 1.12, 5: 1.05, 6: 0.86}
 DOOR_SPEED = 38.0
 
 
+PRODUCT_TYPES = {
+    "shelf-bakery": "Bread and pastries",
+    "shelf-dairy": "Milk and yoghurt",
+    "shelf-drinks": "Water and soft drinks",
+    "shelf-produce": "Fresh fruit and vegetables",
+    "shelf-household": "Cleaning and household goods",
+    "shelf-snacks": "Crisps and snacks",
+    "shelf-grocery": "Pasta and pantry staples",
+    "shelf-sweets": "Chocolate and sweets",
+    "shelf-tea": "Tea and coffee",
+    "shelf-promo": "Seasonal offers",
+}
+
+
 def geometry():
     shapes = [
-        dict(id=key, name=name, kind=kind, points=[list(map(float, p)) for p in points])
+        dict(
+            id=key,
+            name=name,
+            kind=kind,
+            points=[list(map(float, p)) for p in points],
+            **({"product_type": PRODUCT_TYPES[key]} if kind == "shelf" else {}),
+        )
         for key, name, kind, points in ZONES
     ]
     shapes.append(
@@ -129,7 +224,12 @@ def geometry():
         geometry_version=2,
         frame_dims_px=[WIDTH, HEIGHT],
         max_gap_ms=1500,
-        active=dict(line="line-entrance", zone=None, queue="queue-main", checkout="checkout-main"),
+        active=dict(
+            line="line-entrance",
+            zone=None,
+            queue="queue-main",
+            checkout="checkout-main",
+        ),
         shapes=shapes,
     )
 
@@ -812,3 +912,50 @@ def write_run(folder, video_id, geometry_id, rows, events, key=None):
 
 def days_before(today, count):
     return [today - timedelta(days=i) for i in range(count, 0, -1)]
+
+
+# Synchronized virtual camera crops of a single simulated source. They are display
+# views, not extra recordings, so they cannot inflate store totals or reports.
+CAMERA_VIEWS = (
+    dict(id="shelves", name="Shelves camera", roi=[0, 24, 1280, 520], kinds=["shelf"]),
+    dict(
+        id="checkout",
+        name="Checkout camera",
+        roi=[350, 490, 840, 710],
+        kinds=["queue", "checkout"],
+    ),
+    dict(
+        id="exit", name="Exit camera", roi=[850, 450, 1280, 720], kinds=["line", "exit"]
+    ),
+)
+
+
+def camera_manifest(ops):
+    videos = [v for v in ops.catalog.videos() if v["collection_session"] == COLLECTION]
+    if not videos:
+        return dict(available=False, cameras=[], rows=[])
+    video = videos[0]
+    candidates = ops.runs(video["id"])
+    if not candidates:
+        return dict(available=False, cameras=[], rows=[])
+    run, rows = ops.best_run(candidates)
+    insight, _ = ops.insight(run["key"])
+    from app.shelf_operations import snapshot
+
+    stock = snapshot(ops, video["id"], metrics=False)
+    return dict(
+        available=True,
+        simulated=True,
+        shelf_operations=stock,
+        video_id=video["id"],
+        run_key=run["key"],
+        cameras=list(CAMERA_VIEWS),
+        geometry=insight["geometry"]["geometry"],
+        rows=rows,
+        first_media_ms=video["first_media_time_ms"],
+        duration_seconds=(video.get("declared_duration_ms") or video["indexed_span_ms"])
+        / 1000,
+        media_url=f"/api/videos/{video['id']}/content",
+        incidents=insight["incidents"],
+        basis="Three synchronized virtual views of one simulated camera. One source and one analysis; totals are counted once.",
+    )

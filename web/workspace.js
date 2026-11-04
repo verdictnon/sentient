@@ -8,6 +8,7 @@ const $ = id => document.getElementById(id),
         "'": '&#39;'
     } [c]));
 const state = {
+    includeGenerated: false,
     videos: [],
     demo: [],
     video: null,
@@ -116,7 +117,7 @@ for (const n of ['results', 'geometry', 'help']) $(n + '-tab').onclick = () => t
 function title(v) {
     const label = typeof ops === 'object' ? ops.workspace?.recordings.find(row => row.id === v.id)?.context.label : null;
     if (label) return label;
-    return t(v.display_name.replace(/^CARR_/, '').replace(/_720p\.mp4$/, '').replace(/_video\.mp4$/, '').replaceAll('_', ' '))
+    return t(v.display_name.replace(/^CARR_/, '').replace(/_720p\.mp4$/, '').replace(/_video\.mp4$/, '').replaceAll('_', ' ').replace(/\bdemo\b/gi, '').replace(/\s+/g, ' ').trim())
 }
 
 function library() {
@@ -272,6 +273,8 @@ function renderShapes() {
     $('shape-editor').hidden = !s;
     if (s) {
         $('shape-name').value = s.name;
+        $('shelf-product-field').hidden = s.kind !== 'shelf';
+        $('shelf-product').value = s.product_type ?? '';
         $('reverse').hidden = s.kind !== 'line';
         $('line-meaning-field').hidden = s.kind !== 'line';
         $('line-meaning').value = s.positive_means ?? ''
@@ -405,6 +408,7 @@ function finishLive(payload) {
     updateDashboard();
 }
 $('start-live').onclick = guard(async () => {
+    await pauseControlRoom();
     if (state.dirty || state.tool) throw Error(t('Finish drawing and save geometry before starting analysis.'));
     if (state.offline) throw Error(t('Wait for full-video analysis to finish.'));
     $('player').pause();
@@ -815,6 +819,10 @@ $('shape-name').oninput = () => {
         behavior: 'instant'
     })
 };
+$('shelf-product').oninput = () => {
+    const shape = state.geometry.shapes.find(s => s.id === state.selected);
+    if (shape?.kind === 'shelf') { shape.product_type = $('shelf-product').value; markDirty(); }
+};
 $('reverse').onclick = () => {
     state.geometry.shapes.find(s => s.id === state.selected).points.reverse();
     markDirty()
@@ -942,6 +950,8 @@ window.addEventListener('beforeunload', event => {
 });
 async function bootWorkspace() {
     const status = await api('/api/status');
+    state.includeGenerated = !!status.include_generated;
+    document.querySelector('[data-nav=cameras]').hidden = !state.includeGenerated;
     state.demo = status.demo_library ?? [];
     state.videos = await api('/api/videos');
     let id = new URLSearchParams(location.search).get('video');
