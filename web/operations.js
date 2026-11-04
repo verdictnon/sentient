@@ -116,6 +116,7 @@ function navigate(name) {
     if (name === 'wall') openControlRoom().catch(e=>showWallError(e.message));
     if (name === 'showcase') openShowcase().catch(e => toast(e.message, true));
     else pauseShowcase();
+    setFloorPlayback(name === 'store');
     if (name === 'work') loadWorkOrders().catch(e => toast(e.message, true));
     if (name === 'shelves') loadShelfOperations().catch(e => toast(e.message, true));
     if (name === 'cameras') loadCameraSimulation().catch(e => toast(e.message, true));

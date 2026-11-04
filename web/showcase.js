@@ -66,22 +66,18 @@ function drawPose(ctx, pose) {
     }
 }
 
-function paintShowcase() {
-    const video = $('showcase-video'),
-        canvas = $('showcase-canvas'),
-        data = showcase.data;
-    if (!data) return;
+function drawDetections(canvas, data, ms) {
+    const previous = showcase.data;
+    showcase.data = data;
     const [width, height] = data.size,
         scale = Math.max(1, Math.round(canvas.clientWidth * devicePixelRatio / width * 100) / 100),
         ctx = canvas.getContext('2d'),
-        ms = video.currentTime * 1000,
         boxes = showcaseBoxes(ms);
     canvas.width = width * scale;
     canvas.height = height * scale;
     ctx.scale(scale, scale);
     ctx.lineWidth = 2;
     ctx.font = '600 12px Onest, system-ui, sans-serif';
-    const seen = boxes.filter(box => box[6]);
     for (const box of boxes) {
         const [track, x1, y1, x2, y2, score, observed, pose] = box,
             trail = showcaseTrail(track, ms);
@@ -102,6 +98,18 @@ function paintShowcase() {
         ctx.fillStyle = '#10131a';
         ctx.fillText(label, x1 + 4, Math.max(14, y1 - 5));
     }
+    showcase.data = previous;
+    return {
+        ctx,
+        boxes
+    };
+}
+
+function paintShowcase() {
+    const data = showcase.data;
+    if (!data) return;
+    const ms = $('showcase-video').currentTime * 1000,
+        seen = drawDetections($('showcase-canvas'), data, ms).boxes.filter(box => box[6]);
     $('showcase-now').textContent = number(seen.length);
     $('showcase-seen').textContent = number(showcase.events.filter(event => event.t <= ms).length);
     $('showcase-score').textContent = seen.length ? Math.round(seen.reduce((sum, box) => sum + box[5], 0) / seen.length * 100) + '%' : '—';
@@ -175,3 +183,136 @@ function pauseShowcase() {
 $('showcase-video').addEventListener('play', animateShowcase);
 for (const name of ['seeked', 'loadeddata', 'pause', 'ended']) $('showcase-video').addEventListener(name, paintShowcase);
 addEventListener('resize', () => ops.view === 'showcase' && paintShowcase());
+
+// The Store map, on a real recording. Heat, routes and shelf counts all come from the saved tracks.
+const realFloor = {
+    data: null,
+    list: null,
+    heat: null
+};
+
+function footPoints(data) {
+    const tracks = new Map();
+    for (const frame of data.frames)
+        for (const box of frame.boxes) {
+            if (!box[6]) continue;
+            if (!tracks.has(box[0])) tracks.set(box[0], []);
+            tracks.get(box[0]).push([(box[1] + box[3]) / 2, box[4]]);
+        }
+    return tracks;
+}
+
+// Density on a coarse grid, blurred and coloured once, so a person standing still reads as a soft
+// patch and not a hard disc.
+function buildRealHeat(data) {
+    const [width, height] = data.size,
+        columns = 128,
+        rows = Math.round(columns * height / width),
+        grid = new Float32Array(columns * rows),
+        reach = 7;
+    for (const points of footPoints(data).values())
+        for (const [x, y] of points) {
+            const column = x / width * columns,
+                row = y / height * rows;
+            for (let v = Math.max(0, Math.floor(row - reach)); v < Math.min(rows, row + reach); v++)
+                for (let u = Math.max(0, Math.floor(column - reach)); u < Math.min(columns, column + reach); u++)
+                    grid[v * columns + u] += Math.exp(-((u - column) ** 2 + (v - row) ** 2) / (2 * 3.2 ** 2));
+        }
+    const highest = Math.max(1e-6, ...grid),
+        canvas = document.createElement('canvas'),
+        ctx = canvas.getContext('2d'),
+        image = ctx.createImageData(columns, rows);
+    canvas.width = columns;
+    canvas.height = rows;
+    grid.forEach((value, i) => {
+        const share = Math.sqrt(value / highest);
+        image.data.set([255, Math.round(210 * (1 - share)), 40, Math.round(190 * Math.min(1, share * 1.4))], i * 4);
+    });
+    ctx.putImageData(image, 0, 0);
+    return canvas;
+}
+
+function inside(point, polygon) {
+    let hit = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const [xi, yi] = polygon[i],
+            [xj, yj] = polygon[j];
+        if ((yi > point[1]) !== (yj > point[1]) && point[0] < (xj - xi) * (point[1] - yi) / (yj - yi) + xi) hit = !hit;
+    }
+    return hit;
+}
+
+// A person counts at a shelf once a wrist the model found is inside it.
+function peopleReaching(data, shape) {
+    const people = new Set();
+    for (const frame of data.frames)
+        for (const box of frame.boxes) {
+            const pose = box[7];
+            if (pose && [pose[9], pose[10]].some(wrist => wrist[0] && inside(wrist, shape.points))) people.add(box[0]);
+        }
+    return people.size;
+}
+
+function paintRealFloor() {
+    const data = realFloor.data;
+    if (!data) return;
+    const {
+        ctx
+    } = drawDetections($('floor-real-canvas'), data, $('floor-video').currentTime * 1000);
+    if (store.layer === 'heat') {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(realFloor.heat, 0, 0, ...data.size);
+    }
+    if (store.layer === 'flows') {
+        ctx.strokeStyle = '#ffd21f';
+        ctx.lineWidth = 3;
+        for (const points of footPoints(data).values()) {
+            ctx.beginPath();
+            points.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+            ctx.stroke();
+        }
+    }
+    if (store.layer === 'zones') {
+        for (const shape of data.geometry?.shapes ?? []) {
+            const people = peopleReaching(data, shape);
+            ctx.beginPath();
+            shape.points.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(255,210,31,.2)';
+            ctx.fill();
+            ctx.strokeStyle = '#ffd21f';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = '#fff';
+            ctx.font = '700 18px Onest, system-ui, sans-serif';
+            ctx.fillText(`${t(shape.name)}: ${people}`, shape.points[0][0] + 10, shape.points[0][1] + 26);
+        }
+    }
+    if (!$('floor-video').paused && ops.view === 'store') requestAnimationFrame(paintRealFloor);
+}
+
+// Returns false when no real clip exists, so the store falls back to its own map.
+async function showRealFloor() {
+    if (realFloor.list === null) realFloor.list = await api('/api/showcase').catch(() => []);
+    if (!realFloor.list.length) return false;
+    if (!realFloor.data) {
+        const clip = realFloor.list.find(row => row.id.startsWith('V0797')) ?? realFloor.list[0];
+        realFloor.data = await api('/api/showcase/' + encodeURIComponent(clip.id));
+        realFloor.heat = buildRealHeat(realFloor.data);
+        $('floor-video').src = `/api/showcase/${encodeURIComponent(clip.id)}/video.mp4`;
+        $('floor-note').textContent = '';
+    }
+    paintRealFloor();
+    return true;
+}
+
+function setFloorPlayback(playing) {
+    const video = $('floor-video');
+    if (!video.src) return;
+    if (playing) video.play().catch(() => {});
+    else video.pause();
+}
+
+$('floor-video').addEventListener('play', paintRealFloor);
+for (const name of ['seeked', 'loadeddata', 'pause']) $('floor-video').addEventListener(name, paintRealFloor);

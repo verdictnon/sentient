@@ -423,6 +423,30 @@ function renderMap() {
         camera = d?.camera;
     document.querySelector('.floor').hidden = !camera;
     if (!camera) return;
+    if (state.portableDemo && d.basis === 'simulated') {
+        document.querySelectorAll('[data-layer]').forEach(b => b.classList.toggle('selected', b.dataset.layer === store.layer));
+        showRealFloor().then(real => {
+            $('floor-real').hidden = !real;
+            $('floor-screen').hidden = real;
+            $('hour-scrub').hidden = real;
+            if (real) {
+                $('floor-note').textContent = t('Real recording: {store}. Boxes, heat, routes and shelf counts come from the model. The numbers above are generated.', {
+                    store: realFloor.data.store_name
+                });
+                paintRealFloor();
+                setFloorPlayback(ops.view === 'store');
+            } else renderDrawnMap();
+        }).catch(e => toast(e.message, true));
+        return;
+    }
+    renderDrawnMap();
+}
+
+function renderDrawnMap() {
+    const d = store.data,
+        camera = d.camera;
+    $('floor-real').hidden = true;
+    $('floor-screen').hidden = false;
     const [w, h] = camera.dimensions;
     $('floor-screen').style.aspectRatio = `${w}/${h}`;
     const source = camera.frame_url;
