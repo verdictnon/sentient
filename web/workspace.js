@@ -8,6 +8,7 @@ const $ = id => document.getElementById(id),
         "'": '&#39;'
     } [c]));
 const state = {
+    includeGenerated: false,
     videos: [],
     demo: [],
     video: null,
@@ -949,6 +950,8 @@ window.addEventListener('beforeunload', event => {
 });
 async function bootWorkspace() {
     const status = await api('/api/status');
+    state.includeGenerated = !!status.include_generated;
+    document.querySelector('[data-nav=cameras]').hidden = !state.includeGenerated;
     state.demo = status.demo_library ?? [];
     state.videos = await api('/api/videos');
     let id = new URLSearchParams(location.search).get('video');

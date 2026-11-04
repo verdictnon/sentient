@@ -1,5 +1,6 @@
 """The simplified UI must actually import, persist editable geometry and play media."""
 from contextlib import contextmanager
+import os
 import json
 from pathlib import Path
 import re
@@ -19,7 +20,7 @@ def server(folder):
     with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
     url=f'http://127.0.0.1:{port}'
     with (folder/'server.log').open('w') as log:
-        p=subprocess.Popen([sys.executable,'-m','app.p1.server','--port',str(port),'--data-dir',str(folder/'workspace')],cwd=ROOT,stdout=log,stderr=log)
+        p=subprocess.Popen([sys.executable,'-m','app.p1.server','--port',str(port),'--data-dir',str(folder/'workspace')],cwd=ROOT,stdout=log,stderr=log,env=os.environ|{'SENTIENT_INCLUDE_GENERATED':'1'})
         try:
             deadline=time.monotonic()+20
             while True:
@@ -38,7 +39,7 @@ def demo_workspace(folder):
     from app import simulation as sim
     from app.demo_store import seed_store
     from app.p1.server import create_app
-    application=create_app(folder/'workspace')
+    application=create_app(folder/'workspace',include_generated=True)
     with TestClient(application),patch.object(sim,'CLIP_SECONDS',12):
         return seed_store(application.state.operations,days=2,today=date(2026,11,4))
 

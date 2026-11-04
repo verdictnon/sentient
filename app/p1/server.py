@@ -46,8 +46,8 @@ class ReviewRequest(BaseModel):
     end_media_ms: float
 
 
-def create_app(data_root: Path | None = None, *, detector_factory=None, model_dir=None):
-    catalog = Catalog(data_root or Path(os.environ.get("SENTIENT_DATA_DIR", str(ROOT / ".local/workspace"))))
+def create_app(data_root: Path | None = None, *, detector_factory=None, model_dir=None, include_generated=None):
+    catalog = Catalog(data_root or Path(os.environ.get("SENTIENT_DATA_DIR", str(ROOT / ".local/workspace"))), include_generated=include_generated)
     from app.p2.jobs import JobManager
     from app.p2.api import router as tracking_router
     manager=JobManager(catalog,detector_factory,model_dir)
@@ -105,7 +105,7 @@ def create_app(data_root: Path | None = None, *, detector_factory=None, model_di
 
     @app.get("/api/status")
     def status():
-        return {"status": "ready", "mode": "local_recorded_video", "capture_utc_inferred": False, "isolated_replays": True, "demo": actions.demo_entry, "demo_library": actions.demo_library}
+        return {"status": "ready", "include_generated": catalog.include_generated, "mode": "local_recorded_video", "capture_utc_inferred": False, "isolated_replays": True, "demo": actions.demo_entry, "demo_library": actions.demo_library}
 
     @app.get("/api/videos")
     def videos():

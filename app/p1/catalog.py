@@ -1,6 +1,7 @@
 """Application-owned SQLite catalog, frame index and append-only review history."""
 
 from contextlib import contextmanager
+import os
 import json
 from pathlib import Path
 import sqlite3
@@ -8,7 +9,8 @@ from app.p1.source_profile import source_profile, interpret_summary
 
 
 class Catalog:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, include_generated=None):
+        self.include_generated = (os.environ.get("SENTIENT_INCLUDE_GENERATED") == "1") if include_generated is None else include_generated
         self.root = root.resolve()
         for name in ("assets", "uploads", "analyses", "manifests"):
             (self.root / name).mkdir(parents=True, exist_ok=True)
@@ -80,7 +82,8 @@ class Catalog:
     def videos(self):
         with self.connect() as db:
             ids = [row[0] for row in db.execute("SELECT id FROM videos ORDER BY created_utc DESC,id")]
-        return [self.video(key) for key in ids]
+        videos = [self.video(key) for key in ids]
+        return videos if self.include_generated else [v for v in videos if not v["source_profile"].get("simulated")]
 
     def frame(self, video: dict, index: int) -> dict:
         with self.connect() as db:

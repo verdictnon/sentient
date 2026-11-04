@@ -897,3 +897,8 @@ Object.assign(RU, {
 Object.assign(RU, {
     'CARR · Putra et al. · CC BY-NC 4.0': 'CARR · Putra и др. · CC BY-NC 4.0'
 });
+
+Object.assign(RU, {
+    'Local camera analysis.': 'Локальный анализ камер.',
+    'Add your store recordings': 'Добавьте записи магазина'
+});

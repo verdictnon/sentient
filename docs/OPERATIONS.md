@@ -3,7 +3,6 @@
 The existing detector, tracker, local video catalogue and action model power the
 v2 workspace. Start with `.venv-app/bin/python scripts/start_local_workspace.py`
 and open http://127.0.0.1:8766. No frontend build or external service is needed.
-Without models or footage, `./run_demo.sh` or `run_demo.bat` opens the simulated store.
 
 ## Control room
 
@@ -105,22 +104,7 @@ candidates sit outside it because a model miss is not a shopper who took nothing
 Routes skip shelf and floor areas visited for under 6 seconds. A track that leaves the
 queue area without reaching a till counts as gave up.
 
-## Simulated store
-
-`app/simulation.py` runs a deterministic crowd of shoppers over a fixed floor plan.
-`app/demo_store.py` stores 14 days of rollups and one two-minute clip from the last
-evening. Their tracks pass through the same `analyse()` and `day_rollups()` as real
-runs. No detector or action model runs, and **Start simulated live run** replays
-the clip at source pace.
-
-Simulated data is labelled in its source profile, its time basis and its rollups, on
-the hazard tape, in the video stamp and on the Z-report. Report centre documents carry
-a banner, a `simulated` field and a `basis` column. Simulated and real recordings
-never share a rollup. An explicit report selection that mixes them is refused, and an
-open scope such as a schedule covers only the real ones. Rebuilding replaces only the
-simulated store.
-
-## Shelf operations and camera simulation
+## Shelf operations
 
 **Camera setup** gives a shelf two labels: **Area name** identifies the physical
 bay, and **Product type** records what belongs there. Existing geometry without a
@@ -143,23 +127,11 @@ separate inventories; overlapping cameras must not be treated as separate stock.
 
 The stock ledger is operator-confirmed. The existing person/pickup models cannot
 measure remaining product quantities. Candidates never decrement inventory.
-The simulated store seeds explicitly simulated counts, including empty and low
-shelves, so the full count/refill workflow can be demonstrated.
-
 **Overall PDF** reports the selected recording; Report centre can include multiple
 recordings and calendar scopes. PDFs include shelf product labels, route counts
 and stock at generation time, clearly separate from the activity period. JSON
 freezes the stock snapshot and its recent audit history. Historical reports never
-change after a refill. **Stock CSV** exports counts with their simulated flag.
-
-**Camera simulation** opens three virtual crops of the demo source: shelves,
-checkout/queue and exit. A single video clock controls playback, seeking and speed.
-All views show observed IDs and optional 12-second trails; event buttons seek every
-view together. Shelf counts overlay the same geometry used by Shelf operations.
-These are views of one overhead simulation, not independent physical camera feeds
-or cross-camera re-identification. No extra observations enter rollups or reports.
-Use **Explore source tracks** to investigate the underlying saved run. Real
-recordings and simulated data remain separate.
+change after a refill. **Stock CSV** exports counts with source provenance.
 
 ## Store work and shift handover
 
@@ -190,7 +162,7 @@ the requested activity period. Historical report snapshots remain unchanged.
 
 The default display name is **Aster Market**, a fictional store name. Edit it in
 **Store identity** without moving recordings or changing their underlying IDs.
-Generated footage remains labelled Simulated. Existing internal API identifiers
+Existing internal API identifiers
 remain compatible with earlier clients.
 
 ## Monitor and tracking
@@ -328,7 +300,6 @@ those missing data and model capabilities.
 - `app/insights.py`: observed-track, area, crossing and signal reductions.
 - `app/journeys.py`: footfall, routes, funnel, queue outcomes and the pickup cross-check.
 - `app/rollups.py`: hourly store rollups, KPIs and recommendations.
-- `app/simulation.py`, `app/demo_store.py`: the simulated store.
 - `app/operations.py`: run discovery, review/context persistence, reports and scheduler.
 - `app/report_documents.py`: PDF and Word rendering from immutable report snapshots.
 - `web/store.js`: the Store view and the store half of Analytics.
@@ -337,7 +308,7 @@ those missing data and model capabilities.
 - `web/workspace.js` and `web/dashboard.js`: the retained playback/inference/editor UI.
 - `tests/p1/test_operations.py`: analytics, periods, reviews, reports and scheduler checks.
 - `tests/p1/test_journeys.py`, `test_store_overview.py`, `test_interface_language.py`:
-  cross-checks, rollups, the simulated store and translation coverage.
+  cross-checks, rollups and translation coverage.
 
 Existing catalogues and inference outputs are preserved. New operations state
 uses additive `ops_*` SQLite tables. Generated reports are under

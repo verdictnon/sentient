@@ -18,7 +18,7 @@ class ShelfOperationsTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
-        self.app = create_app(self.root / "workspace")
+        self.app = create_app(self.root / "workspace", include_generated=True)
         self.client = TestClient(self.app)
         self.client.__enter__()
         self.ops = self.app.state.operations
@@ -188,7 +188,7 @@ class ShelfOperationsTests(unittest.TestCase):
                 "shelves"
             ][0]["stock"]
         )
-        again = create_app(self.root / "workspace")
+        again = create_app(self.root / "workspace", include_generated=True)
         with TestClient(again) as client:
             self.assertEqual(
                 client.get(self.base).json()["shelves"][0]["stock"]["on_hand"], 5

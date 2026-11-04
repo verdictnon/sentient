@@ -129,7 +129,7 @@ class DemoStoreTests(unittest.TestCase):
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory()
         cls.root = Path(cls.temp.name)
-        cls.app = create_app(cls.root / "workspace")
+        cls.app = create_app(cls.root / "workspace", include_generated=True)
         cls.client = TestClient(cls.app)
         cls.client.__enter__()
         cls.ops = cls.app.state.operations

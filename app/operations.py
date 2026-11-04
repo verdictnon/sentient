@@ -276,6 +276,9 @@ class Operations:
                     model_id=p.get("model_id"),
                 )
             )
+        if not self.catalog.include_generated:
+            visible={v["id"] for v in self.catalog.videos()}
+            rows=[r for r in rows if r["video_id"] in visible]
         return sorted(rows, key=lambda r: r["created_at"], reverse=True)
 
     def run(self, key):
@@ -485,6 +488,7 @@ class Operations:
             for v in self.catalog.videos()
         ]
         return dict(
+            include_generated=self.catalog.include_generated,
             settings=self.settings(),
             recordings=recordings,
             reports=self.reports(),
@@ -1073,6 +1077,7 @@ class Operations:
                 for r in db.execute(
                     "SELECT payload FROM ops_reports ORDER BY created_at DESC LIMIT 100"
                 )
+                if self.catalog.include_generated or not json.loads(r[0]).get("simulated")
             ]
 
     def create_report(self, request, token=None):

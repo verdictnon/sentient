@@ -65,6 +65,7 @@ async function loadStore(options = {}) {
     store.loading = true;
     document.body.classList.add('store-loading');
     try {
+        if (!store.id && !state.includeGenerated && ops.workspace?.recordings.some(v=>v.store_id==='carr-unej')) store.id='carr-unej';
         const params = new URLSearchParams();
         if (store.id) params.set('store_id', store.id);
         if (store.day) {
@@ -104,6 +105,7 @@ function renderPeriod() {
 }
 
 function setSimulatedTape() {
+    if (!state.includeGenerated) { $('sim-tape').hidden = true; return; }
     const onStore = (ops.view === 'work' && workBoard.data?.store?.simulated) || (['store', 'analytics'].includes(ops.view) && store.data?.basis === 'simulated') || (ops.view === 'shelves' && shelfOps.data?.simulated) || (ops.view === 'cameras' && cameraSim.data?.available),
         onCamera = !['store', 'work', 'shelves', 'cameras', 'reports', 'system', 'help'].includes(ops.view) && state.video?.source_profile?.simulated;
     $('sim-tape').hidden = !(onStore || onCamera);
@@ -551,6 +553,11 @@ function drawFloorOverlay() {
 }
 
 function renderOnboarding() {
+    if (!state.includeGenerated) {
+        $('store-empty').innerHTML = `<h2>${esc(t('Add your store recordings'))}</h2><button id="real-import" class="primary">${esc(t('Add video'))}</button>`;
+        $('real-import').onclick=()=>$('import-open').click();
+        return;
+    }
     const demo = store.demo ?? {};
     const building = demo.status === 'building';
     $('store-empty').innerHTML = `<h2>${esc(t('See a whole store before installing anything'))}</h2><p>${esc(t('Build a simulated store with two weeks of traffic and one camera. It needs no footage, models or GPU, and it stays clearly labelled as simulated.'))}</p>${building?`<div class="build-progress"><progress value="${demo.progress??0}" max="1"></progress><span>${esc(buildStage(demo.stage))}</span></div>`:`<div class="toolbar"><button id="demo-build" class="primary">${esc(t('Prepare Aster Market'))}</button><button id="demo-import">${esc(t('Add my own video'))}</button></div>`}${demo.error?`<p class="field-note">${esc(demo.error)}</p>`:''}`;

@@ -17,7 +17,6 @@ const viewInfo = {
     wall: ['Control room', 'Cameras, activity and store layout.'],
     work: ['Operations board', 'Assign, track and close store work.'],
     shelves: ['Shelves', 'Stock checks, refill work and shelf activity.'],
-    cameras: ['Camera simulation', 'Synchronized views of the simulated store.'],
     store: ['Store', 'The day on one screen.'],
     overview: ['Monitor', 'Watch a camera and its signals.'],
     analytics: ['Analytics', 'Traffic, queues, shelves and routes.'],
@@ -1059,6 +1058,7 @@ async function bootOperations() {
     await bootWorkspace();
     await refreshWorkspace();
     ops.booted = true;
+    if (state.includeGenerated) viewInfo.cameras = ['Camera simulation', 'Synchronized views of the simulated store.'];
     const date = currentDateInZone(ops.workspace.settings.timezone);
     $('report-date').value = date;
     $('report-month').value = date.slice(0, 7);

@@ -28,7 +28,7 @@ def main():
     from app.demo_store import seed_store
     from app.p1.server import create_app
 
-    app = create_app(args.data_dir)
+    app = create_app(args.data_dir, include_generated=True)
     operations = app.state.operations
     if args.rebuild or operations.demo_state()["status"] == "absent":
         print("Building the simulated store. This happens once and takes a minute or two.")

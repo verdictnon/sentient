@@ -119,6 +119,14 @@ class ControlRoomTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
 
+    def test_operator_catalog_excludes_generated_recordings(self):
+        generated=self.client.post('/api/videos/import',json=dict(path=str(self.root/'one.mp4'),store_id='sim-store',camera_id='synthetic',collection_session='simulated/fixture')).json()
+        visible=self.client.get('/api/videos').json()
+        self.assertNotIn(generated['id'],[v['id'] for v in visible])
+        workspace=self.client.get('/api/ops/workspace').json()
+        self.assertFalse(workspace['include_generated'])
+        self.assertNotIn(generated['id'],[v['id'] for v in workspace['recordings']])
+
     def test_manifest_uses_publisher_location_and_excludes_unrelated_store(self):
         data = self.client.get("/api/control-room/manifest").json()
         unej = next(s for s in data["stores"] if s["id"] == "carr-unej")

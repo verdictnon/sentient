@@ -1,9 +1,5 @@
 # Aster Market operations guide
 
-For a laptop with no models or footage, run `./run_demo.sh` or `run_demo.bat` and
-see [the pitch run-through](PITCH_DEMO.md). The simulated store is described in
-docs/OPERATIONS.md.
-
 The interface adds Store, Track explorer, Investigations, Report centre and System
 views. See docs/OPERATIONS.md for the store view, cross-checks, tracking tools,
 reviews, calendar reports and automatic schedules. The inference and original

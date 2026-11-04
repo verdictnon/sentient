@@ -5,26 +5,17 @@ closing time: how many people came in, when the line ran too long, which shelves
 people stopped at, and which pickups never reached a till. It runs on one computer
 and the video stays there.
 
-## Try it
+## Run it
 
-You need Python 3.12 or 3.13. No footage, models or GPU.
+With the installed models and recordings:
 
 ```sh
-./run_demo.sh     # macOS or Linux
-run_demo.bat      # Windows
+.venv-app/bin/python scripts/start_local_workspace.py
 ```
 
-The first run installs the application and builds a simulated store: two weeks of
-traffic and a two-minute camera view. That took 100 seconds on a clean Linux copy
-and leaves a 380 MB Python environment. After that it starts at once and needs no
-network. Add `--rebuild` to move the simulated days up to yesterday. The Windows
-launcher has not been run yet.
-
-Everything simulated says so: the hazard tape on screen, the stamp in the video,
-the Z-report and every exported document. It goes through the same analysis code
-as real recordings, and the two never share a rollup or a report.
-
-[The pitch run-through](docs/PITCH_DEMO.md) is a three-minute script in Russian.
+Open **http://127.0.0.1:8766**. The control room automatically plays HD recordings
+from one store and runs person tracking and pickup analysis. Models, footage and
+runtime data are kept outside Git. Dependencies are in `requirements-app.txt`.
 
 ## What you get
 
@@ -45,9 +36,6 @@ as real recordings, and the two never share a rollup or a report.
 - **Shelves:** separate area and product labels, confirmed stock counts, capacity,
   refill thresholds, a prioritized refill queue and an auditable movement history.
   Rank shelves by visits, tracks or total observed dwell; open their source paths.
-- **Camera simulation:** synchronized shelf, checkout and exit views, shared
-  playback controls, trails, stock overlays and event seeking. These virtual crops
-  use one simulated source and do not add duplicate recordings or totals.
 - **Overall PDF:** shelf activity, popular routes, investigations and a frozen
   stock snapshot at generation time. Reports remain available in Report centre.
 - **Operations board:** persistent assigned work, due times, refill/audit tasks,
@@ -79,7 +67,7 @@ waiting and checkout areas. **Demo guide** explains the workflow inside the
 application. Shelf visits, observed dwell, occupancy and nearby pickup alerts appear
 together and export to CSV/JSON.
 
-Read [the demo guide](docs/DEMO_GUIDE.md) for operation, geometry, timing and
+Read [the operator guide](docs/DEMO_GUIDE.md) for operation, geometry, timing and
 metric definitions. [Data sources](docs/DATA_SOURCES.md) records the footage
 search and access constraints.
 
