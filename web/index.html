@@ -17,7 +17,7 @@
       document.documentElement.lang = lang;
     })();
   </script>
-  <link rel="stylesheet" href="/style.css?v=7">
+  <link rel="stylesheet" href="/style.css?v=8">
 </head>
 <body data-view="store">
 <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -51,6 +51,7 @@
   <aside class="rail" id="sidebar" aria-label="Workspace navigation">
     <a href="/" class="brand" aria-label="Sentient home"><svg class="brand-mark" aria-hidden="true"><use href="#i-logo"/></svg><span>sentient</span></a>
     <nav class="navigation">
+      <button class="nav-item" data-nav="wall"><svg class="icon"><use href="#i-camera"/></svg>Control room</button>
       <button class="nav-item" data-nav="store"><svg class="icon"><use href="#i-store"/></svg>Store</button>
       <button class="nav-item" data-nav="overview"><svg class="icon"><use href="#i-camera"/></svg>Monitor</button>
       <button class="nav-item" data-nav="work"><svg class="icon"><use href="#i-report"/></svg>Operations board</button>
@@ -72,6 +73,7 @@
     <header class="topbar">
       <button id="menu-toggle" class="icon-button mobile-menu" aria-label="Open navigation" aria-expanded="false"><svg class="icon"><use href="#i-menu"/></svg></button>
       <h1 id="page-label">Store</h1>
+      <button id="copy-toggle" class="icon-button" aria-label="Show explanations" title="Show explanations">i</button>
       <div class="period" id="period-bar">
         <label class="sr-only" for="store-select">Store</label>
         <select id="store-select"></select>
@@ -97,6 +99,20 @@
     <main id="main">
       <div id="sim-tape" class="sim-tape" hidden><p>Simulated footage. People, tracks and pickup signals are generated, not measured.</p></div>
 
+      <section id="control-room-section" class="view" hidden>
+        <div class="wall-toolbar"><label class="sr-only" for="wall-store">Store</label><select id="wall-store"></select><span class="wall-source-chip">Recorded footage</span><span class="wall-engine" id="wall-status" role="status">Connecting…</span><div class="wall-toolbar-end"><button id="wall-next" title="Next recording" aria-label="Next recording">↦</button><button id="wall-pause">Pause analysis</button><button id="wall-fullscreen" aria-label="Fullscreen">⛶</button></div></div>
+        <div id="wall-empty" class="empty" hidden></div>
+        <div class="control-grid" id="wall-content">
+          <div class="control-main">
+            <div id="wall-stage" class="wall-stage"><video id="wall-video" muted autoplay playsinline preload="auto"></video><img id="wall-frame" alt="Analysed camera frame" hidden><svg id="wall-overlay" aria-label="Observed people and pickup candidates"></svg><div class="wall-camera-label"><span class="wall-dot"></span><b id="wall-camera-name">Camera 01</b><span id="wall-clip-position"></span></div><div id="wall-message" class="wall-message" role="status" hidden></div></div>
+            <div class="wall-stats"><div><strong id="wall-people">—</strong><span>People in view</span></div><div><strong id="wall-pickups">—</strong><span>Pickup candidates</span></div><div><strong id="wall-time">0:00</strong><span id="wall-loop">Loop 1</span></div><label class="wall-paths"><input id="wall-paths" type="checkbox" checked>Paths</label></div>
+            <div id="wall-camera-list" class="wall-camera-list"></div>
+            <div class="wall-map-head"><h2>Camera map</h2><span class="muted">Schematic</span><button id="wall-arrange">Arrange cameras</button></div>
+            <svg id="wall-map" viewBox="0 0 900 270" role="group" aria-label="Clickable camera locations"></svg>
+          </div>
+          <aside class="wall-signals"><div class="panel-head"><h2>Latest signals</h2><span id="wall-event-count" class="small-count">0</span></div><div id="wall-events"></div><details class="wall-details"><summary>Source details</summary><p id="wall-source-details"></p><p id="wall-license" hidden><a href="https://doi.org/10.7910/DVN/CY24UB" target="_blank" rel="noopener">CARR · Putra et al. · CC BY-NC 4.0</a></p><a href="/guide" target="_blank" rel="noopener">Operator guide</a></details></aside>
+        </div>
+      </section>
       <!-- Store: the day on one screen -->
       <section id="store-section" class="view">
         <div class="store-layout">
@@ -537,15 +553,16 @@
     <label>Operator notes<textarea id="stock-notes" maxlength="500"></textarea></label><p id="stock-error" class="field-note" role="alert"></p><button class="primary" id="stock-save" type="submit">Save stock update</button>
   </form>
 </dialog>
-<script src="/i18n.js?v=7"></script>
-<script src="/i18n.ru.js?v=7"></script>
-<script src="/charts.js?v=7"></script>
-<script src="/workspace.js?v=7"></script>
-<script src="/dashboard.js?v=7"></script>
-<script src="/store.js?v=7"></script>
-<script src="/shelf-operations.js?v=7"></script>
-<script src="/work-orders.js?v=7"></script>
-<script src="/operations.js?v=7"></script>
+<script src="/i18n.js?v=8"></script>
+<script src="/i18n.ru.js?v=8"></script>
+<script src="/charts.js?v=8"></script>
+<script src="/workspace.js?v=8"></script>
+<script src="/dashboard.js?v=8"></script>
+<script src="/store.js?v=8"></script>
+<script src="/shelf-operations.js?v=8"></script>
+<script src="/work-orders.js?v=8"></script>
+<script src="/control-room.js?v=8"></script>
+<script src="/operations.js?v=8"></script>
 
 </body>
 </html>

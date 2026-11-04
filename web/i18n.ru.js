@@ -858,3 +858,42 @@ Object.assign(RU, {
     "Shelf stock": "Остатки полок",
     "Aster Market": "Aster Market"
 });
+
+Object.assign(RU, {
+    "Control room": "Видеонаблюдение",
+    "Cameras, activity and store layout.": "Камеры, активность и схема магазина.",
+    "Show explanations": "Показать пояснения",
+    "Recorded footage": "Запись",
+    "Connecting…": "Подключение…",
+    "Next recording": "Следующая запись",
+    "Pause analysis": "Приостановить анализ",
+    "Resume analysis": "Продолжить анализ",
+    "Fullscreen": "На весь экран",
+    "Analysed camera frame": "Кадр с результатами анализа",
+    "Observed people and pickup candidates": "Наблюдаемые люди и возможные подборы",
+    "Camera 01": "Камера 01",
+    "People in view": "Людей в кадре",
+    "Loop 1": "Цикл 1",
+    "Camera map": "Карта камер",
+    "Schematic": "Схема",
+    "Arrange cameras": "Расставить камеры",
+    "Clickable camera locations": "Положение камер: нажмите для просмотра",
+    "Latest signals": "Последние сигналы",
+    "Source details": "Об источнике",
+    "i": "i",
+    "Import HD continuous recordings to open the control room.": "Импортируйте непрерывные записи HD, чтобы открыть видеонаблюдение.",
+    "Paused": "Приостановлено",
+    "Live analysis": "Анализ в реальном времени",
+    "Reconnecting…": "Переподключение…",
+    "Analysis unavailable": "Анализ недоступен",
+    "Autoplay was blocked by this browser.": "Браузер заблокировал автоматическое воспроизведение.",
+    "Loop {n}": "Цикл {n}",
+    "{n} / {m}": "{n} / {m}",
+    "Watching for activity": "Наблюдаем за активностью",
+    "Done": "Готово",
+    "{n} HD recordings from {store}. Recorded clips loop with source-paced inference. The layout is schematic; camera positions are editable.": "{n} записей HD из {store}. Записи повторяются, анализ следует времени исходника. Карта схематичная; положение камер можно изменить."
+});
+
+Object.assign(RU, {
+    'CARR · Putra et al. · CC BY-NC 4.0': 'CARR · Putra и др. · CC BY-NC 4.0'
+});

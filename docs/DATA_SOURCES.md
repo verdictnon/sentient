@@ -3,8 +3,8 @@
 Requested: at least one hour of high-quality real video, with multiple
 synchronized cameras of the same market covering shelves, entrance/exit and
 checkout. No source below has been verified to satisfy all those conditions
-with a direct public download. Short clips must not be looped or concatenated
-to pretend to meet that requirement.
+with a direct public download. Loops are available as a labelled viewing mode. Repeated clips do not create
+additional source coverage or a synchronized hour.
 
 | Source | Actual release / suitability | Access |
 |---|---|---|
@@ -26,3 +26,30 @@ live CCTV feeds or privately obtained recordings were used.
 The installed seven clips test the real integration. They do not establish
 cross-camera tracking, full-store coverage, independent pickup precision,
 checkout completion or theft detection.
+
+
+## Same-store camera wall — 4 November 2026
+
+The [publisher repository](https://github.com/januaradip/CARR) and native manifest
+identify the actual store for each sequence. The camera wall separates the legacy
+shared catalogue collection by these location labels. UNEJ Mart recordings are
+kept together; KPRI Kalimantan, Alif and Budi Jaya are separate selections.
+
+`scripts/acquire_store_playlist.py` selects the ten longest additional contiguous
+UNEJ sequences (excluding the existing V0797), retaining up to 120 source frames
+at the publisher's 15 fps. It reads bounded archive ranges, validates JPEG member
+CRCs, preserves frame indices and source hashes, and encodes 1280×720 MP4s.
+`scripts/import_store_playlist.py` registers only that store and copies the
+existing same-view floor geometry. Source files, range caches, acquisition
+receipts and import manifests remain under ignored `data/public_retail_hd/`.
+
+This is qualitative footage, selected without model scores. Activities are the
+publisher's coarse classes, not ground-truth pickup events. Capture UTC remains
+unknown. Repeated playback is visible as a loop and does not measure new traffic.
+There is one verified fixed viewpoint per store in these sources; no exit or
+checkout camera is fabricated. The clickable camera layout is explicitly
+schematic and editable, because no surveyed floor plan was released.
+
+No verified publisher-authorized live endpoint for these stores was found in the
+current search. The app runs actual causal inference over recordings. It does not
+label archived footage as live CCTV or connect to unsecured camera directories.

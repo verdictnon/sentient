@@ -57,6 +57,7 @@ def create_app(data_root: Path | None = None, *, detector_factory=None, model_di
     async def lifespan(application):
         operations.start()
         yield
+        control_room.shutdown()
         operations.shutdown()
         live.shutdown()
         actions.shutdown()
@@ -70,6 +71,10 @@ def create_app(data_root: Path | None = None, *, detector_factory=None, model_di
     operations=Operations(catalog,manager,actions,live)
     app.state.operations=operations
     app.include_router(operations_router(operations))
+    from app.control_room import ControlRoom, router as control_room_router
+    control_room=ControlRoom(operations)
+    app.state.control_room=control_room
+    app.include_router(control_room_router(control_room))
     from app.shelves import router as shelf_router
     app.include_router(shelf_router(manager))
     app.state.catalog = catalog

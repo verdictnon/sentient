@@ -407,6 +407,7 @@ function finishLive(payload) {
     updateDashboard();
 }
 $('start-live').onclick = guard(async () => {
+    await pauseControlRoom();
     if (state.dirty || state.tool) throw Error(t('Finish drawing and save geometry before starting analysis.'));
     if (state.offline) throw Error(t('Wait for full-video analysis to finish.'));
     $('player').pause();

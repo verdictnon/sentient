@@ -198,6 +198,46 @@ class WorkOrderBrowserTests(unittest.TestCase):
                 page.locator('#lang-toggle').click();page.wait_for_function('workBoard.data?.tasks.length>0');expect(page.locator('#page-label')).to_have_text('Рабочие задачи')
                 self.assertEqual(errors,[]);browser.close()
 
+class ControlRoomBrowserTests(unittest.TestCase):
+    def test_autoplay_camera_map_and_candidate_inspection(self):
+        # A labelled synthetic fixture exercises the UI; the production model is
+        # separately smoke-tested on real recordings without making CI load a GPU.
+        import base64
+        with tempfile.TemporaryDirectory() as directory:
+            folder=Path(directory);seeded=demo_workspace(folder)
+            summary_path=folder/'workspace/live'/seeded['run_key'].split(':',1)[1]/'summary.json'
+            summary=json.loads(summary_path.read_text())
+            rows=[json.loads(line) for line in (summary_path.parent/'observations.jsonl').read_text().splitlines()]
+            row=next(row for row in rows if row['tracks'])
+            track=row['tracks'][0]
+            event=dict(id='fixture-wall-pickup',local_track_id=track['local_track_id'],start_media_ms=row['media_ms'],end_media_ms=row['media_ms']+200,detected_media_ms=row['media_ms'],score=.99)
+            summary['pickups']=[event];summary_path.write_text(json.dumps(summary))
+            with server(folder) as url,sync_playwright() as pw:
+                browser=pw.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1440,'height':900});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+                video=seeded['video_id'];clip=dict(id=video,name='Synthetic UI fixture',duration_seconds=12,dimensions=[1280,720],media_url=f'/api/videos/{video}/content',thumbnail_url=f'/api/videos/{video}/frame/0')
+                camera=dict(id='fixture-camera',name='Camera 01',clips=[clip],layout=dict(x=25,y=30,heading=90,revision=0))
+                store_=dict(id='fixture-store',name='Fixture store',clip_count=1,cameras=[camera])
+                manifest=dict(stores=[store_],default_store_id=store_['id'])
+                image=base64.b64encode(page.request.get(url+clip['thumbnail_url']).body()).decode()
+                payload=dict(status='running',config=dict(store_id=store_['id'],store_name=store_['name'],camera_id=camera['id'],camera_name=camera['name'],clips=[clip]),video=clip,clip_index=0,cycle=1,session_id=summary['id'],geometry=dict(shapes=[]),latest=dict(image=image,media_ms=row['media_ms'],source_elapsed_seconds=row['media_ms']/1000,frame_dims_px=[1280,720],tracks=row['tracks'],paths={},pickups=[event],pickup_count=1))
+                page.route('**/api/control-room/manifest',lambda route:route.fulfill(json=manifest))
+                page.route('**/api/control-room/start',lambda route:route.fulfill(json=payload))
+                page.route('**/api/control-room/stop',lambda route:route.fulfill(json=dict(status='paused')))
+                page.route('**/api/control-room/heartbeat',lambda route:route.fulfill(json=dict(active=True)))
+                page.route('**/api/control-room/stream',lambda route:route.fulfill(body='data: '+json.dumps(payload)+'\n\n',content_type='text/event-stream'))
+                page.goto(url+'/?view=wall');page.wait_for_function('controlWall.events.size===1')
+                expect(page.locator('#wall-frame')).to_be_visible();expect(page.locator('#wall-pickups')).to_have_text('1')
+                self.assertGreater(page.locator('#wall-overlay rect').count(),0)
+                page.locator('#wall-map [data-map-camera]').click();page.wait_for_function('controlWall.running')
+                page.locator('.wall-signal').click();expect(page.locator('#incident-dialog')).to_be_visible()
+                self.assertEqual(page.evaluate('ops.review.id'),'fixture-wall-pickup')
+                page.locator('#incident-close').click();page.goto(url+'/?view=work');page.wait_for_function('workBoard.data?.store')
+                expect(page.locator('#work-orders-section>.panel-head p')).to_be_hidden()
+                page.locator('#copy-toggle').click();expect(page.locator('#work-orders-section>.panel-head p')).to_be_visible()
+                page.set_viewport_size({'width':390,'height':844});page.goto(url+'/?view=wall');page.wait_for_function('controlWall.events.size===1')
+                self.assertFalse(page.evaluate('document.documentElement.scrollWidth>innerWidth'))
+                self.assertEqual(errors,[]);browser.close()
+
 class WorkspaceBrowserTests(unittest.TestCase):
     def test_operations_track_reviews_reports_and_schedules(self):
         with tempfile.TemporaryDirectory() as directory:

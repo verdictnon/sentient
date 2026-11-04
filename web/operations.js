@@ -14,6 +14,7 @@ const ops = {
     health: null
 };
 const viewInfo = {
+    wall: ['Control room', 'Cameras, activity and store layout.'],
     work: ['Operations board', 'Assign, track and close store work.'],
     shelves: ['Shelves', 'Stock checks, refill work and shelf activity.'],
     cameras: ['Camera simulation', 'Synchronized views of the simulated store.'],
@@ -28,6 +29,7 @@ const viewInfo = {
     help: ['Operator guide', 'How to get the most out of each view.']
 };
 const VIEW_SECTIONS = {
+    wall: ['control-room-section'],
     work: ['work-orders-section'],
     shelves: ['shelf-operations-section'],
     cameras: ['camera-simulation-section'],
@@ -95,6 +97,7 @@ function exportRows(rows, columns, name) {
 
 function navigate(name) {
     if (!viewInfo[name]) name = 'store';
+    if (ops.view === 'wall' && name !== 'wall') pauseControlRoom().catch(e=>toast(e.message,true));
     ops.view = name;
     document.body.dataset.view = name;
     const [label, subtitle] = viewInfo[name];
@@ -109,6 +112,7 @@ function navigate(name) {
     if (name === 'geometry' || name === 'help') tab(name);
     else if (state.tab !== 'results') tab('results');
     if (name !== 'cameras') $('sim-player').pause();
+    if (name === 'wall') openControlRoom().catch(e=>showWallError(e.message));
     if (name === 'work') loadWorkOrders().catch(e => toast(e.message, true));
     if (name === 'shelves') loadShelfOperations().catch(e => toast(e.message, true));
     if (name === 'cameras') loadCameraSimulation().catch(e => toast(e.message, true));
@@ -1065,7 +1069,8 @@ async function bootOperations() {
         print: true
     });
     if (store.demo.status === 'building') startDemoWatch();
-    navigate(requested && viewInfo[requested] ? requested : savedRun ? 'overview' : 'store');
+    const cameras = await api('/api/control-room/manifest');
+    navigate(requested && viewInfo[requested] ? requested : cameras.stores.length ? 'wall' : savedRun ? 'overview' : 'store');
     syncOperations();
 }
 

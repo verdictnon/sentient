@@ -5,6 +5,47 @@ v2 workspace. Start with `.venv-app/bin/python scripts/start_local_workspace.py`
 and open http://127.0.0.1:8766. No frontend build or external service is needed.
 Without models or footage, `./run_demo.sh` or `run_demo.bat` opens the simulated store.
 
+## Control room
+
+The default view opens on real continuous HD recordings when they are available.
+The camera worker starts automatically. It loops through recordings from one
+physical store and camera, then repeats. The original detector, local tracker and
+causal pickup model produce frame-aligned overlays; footage is explicitly marked
+**Recorded footage** while the worker is marked **Live analysis**. Playback during
+model warm-up is unscored. Pickup candidates remain predictions for review.
+
+CARR's old shared research catalogue label is split for this view using the
+publisher's location metadata. UNEJ, KPRI Kalimantan, Alif and Budi Jaya never mix
+in a patrol. Duplicate excerpts of the same publisher video are reduced to the
+longest recording. The source library contains one verified viewpoint per CARR
+store; the UI does not invent exit or checkout cameras. Additional imported HD
+recordings can contribute actual camera IDs within their explicitly assigned store.
+
+**Camera map** is a schematic, not a surveyed floor plan. Select a camera marker
+or thumbnail to switch its playlist automatically. **Arrange cameras** enables
+dragging; positions persist with revision conflict checks. The map and the active
+camera stay linked. A small source-details disclosure explains provenance.
+
+People and candidate counts describe the current recording, and reset when it
+changes. Each recording starts a separate local identity session. Replaying
+recordings is not new customer traffic. Normal reporting still selects one
+completed analysis per recording. Candidate signals open their saved session in
+Investigations, with source evidence and the existing review workflow.
+
+A browser renews its monitoring lease every 15 seconds. Leaving or closing the
+view releases it; the worker stops after 60 seconds without a connected owner.
+Multiple tabs on the same camera share the worker. A patrol does not preempt an
+unrelated manual analysis. Pause and next-recording controls are available.
+To bound unattended disk growth, only the latest three unreviewed patrol outputs
+per recording are retained. Reviewed runs, report-referenced runs and manually
+started analyses are preserved.
+
+Supporting prose is collapsed by default. The **i** button restores explanations
+and saves that preference. Operational errors and status remain visible. The
+previous design is recoverable from Git tag
+`backup/aster-market-design-2026-11-04`; its complete web assets are also archived
+locally in `output/design-backups/aster-market-before-camera-wall.zip`.
+
 ## Store view
 
 **Store** opens first. It shows one store for one day or seven days: a summary

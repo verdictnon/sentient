@@ -28,6 +28,11 @@ as real recordings, and the two never share a rollup or a report.
 
 ## What you get
 
+- **Control room:** automatic same-store HD playlists with live person/pickup
+  inference, clickable camera map, saved layout edits and signal-to-evidence
+  navigation. Recorded footage is labelled explicitly; no public CCTV feed is
+  implied. The quieter interface keeps explanations behind an info toggle.
+
 - **Store:** one day or week on one screen, with a plain summary, a till-roll
   Z-report with PDF, a heat, route or zone map, a week grid and what to do next.
 - **Pickup cross-check:** each pickup candidate is followed to the checkout area or
