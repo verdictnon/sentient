@@ -1,5 +1,6 @@
 """Operator-confirmed shelf stock, separate from vision pickup candidates."""
 
+from contextlib import nullcontext
 import json
 from datetime import UTC, datetime
 
@@ -101,13 +102,20 @@ def snapshot(ops, video_id, metrics=True):
     }
 
 
-def update(ops, video_id, shelf_id, value):
+def update(ops, video_id, shelf_id, value, connection=None):
     video, shelves = identity(ops, video_id, shelf_id)
     shelf = next(s for s in shelves if s["id"] == shelf_id)
     if value["reorder_at"] >= value["capacity"]:
         raise ValueError("Refill threshold must be below shelf capacity")
     key = (video["store_id"], video["camera_id"], shelf_id)
-    with ops.lock, ops.catalog.connect(write=True) as db:
+    with (
+        ops.lock,
+        (
+            nullcontext(connection)
+            if connection is not None
+            else ops.catalog.connect(write=True)
+        ) as db,
+    ):
         row = db.execute(
             "SELECT payload FROM ops_shelf_stock WHERE store_id=? AND camera_id=? AND shelf_id=?",
             key,

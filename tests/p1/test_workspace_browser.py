@@ -164,6 +164,40 @@ class ShelfCameraBrowserTests(unittest.TestCase):
                 self.assertEqual(errors,[])
                 browser.close()
 
+class WorkOrderBrowserTests(unittest.TestCase):
+    def test_assign_complete_export_and_rename_store(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder=Path(directory);seeded=demo_workspace(folder)
+            with server(folder) as url,sync_playwright() as pw:
+                browser=pw.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1440,'height':1000})
+                errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+                page.goto(url+'/?view=work&video='+seeded['video_id'])
+                page.wait_for_function('workBoard.data?.tasks.length>0')
+                expect(page.locator('#work-store')).to_contain_text('Aster Market')
+                self.assertNotRegex(page.locator('body').inner_text().lower(),r'\bdemo\b')
+                dairy=page.locator('.work-card').filter(has=page.locator('h3',has_text='Dairy'))
+                dairy.get_by_role('button',name='Manage work').click()
+                page.locator('#work-assignee').fill('Dana');page.locator('#work-status').select_option('in_progress');page.locator('#work-notes').fill('Checking back room')
+                page.locator('#work-save').click();expect(page.locator('#work-dialog')).not_to_be_visible()
+                expect(dairy).to_contain_text('Dana')
+                dairy.get_by_role('button',name='Manage work').click();page.locator('#work-status').select_option('completed')
+                expect(page.locator('#work-quantity')).to_have_value('60')
+                page.locator('#work-notes').fill('Milk delivery shelved');page.locator('#work-save').click()
+                page.wait_for_function("workBoard.data.tasks.some(t=>t.title==='Dairy'&&t.status==='completed')")
+                self.assertEqual(page.request.get(url+f"/api/ops/recordings/{seeded['video_id']}/shelves").json()['shelves'][1]['stock']['on_hand'],60)
+                page.locator('#work-new').click();page.locator('#work-title').fill('Clean checkout belt');page.locator('#work-assignee').fill('Alex');page.locator('#work-save').click()
+                expect(page.locator('#work-grid')).to_contain_text('Clean checkout belt')
+                page.locator('#store-profile-name').fill('Aster Market Riverside');page.locator('#store-profile-form button').click()
+                page.wait_for_function("workBoard.data.store.name==='Aster Market Riverside'")
+                with page.expect_download() as dl:page.locator('#work-handover').click()
+                path=folder/'handover.md';dl.value.save_as(path)
+                self.assertIn('Aster Market Riverside',path.read_text());self.assertIn('Clean checkout belt',path.read_text());self.assertIn('Dairy',path.read_text())
+                page.reload();page.wait_for_function('workBoard.data?.tasks.length>0');expect(page.locator('#work-store')).to_contain_text('Aster Market Riverside')
+                page.locator('#work-filter').select_option('completed');expect(page.locator('#work-grid')).to_contain_text('Milk delivery shelved')
+                page.set_viewport_size({'width':390,'height':844});self.assertFalse(page.evaluate('document.documentElement.scrollWidth>innerWidth'))
+                page.locator('#lang-toggle').click();page.wait_for_function('workBoard.data?.tasks.length>0');expect(page.locator('#page-label')).to_have_text('Рабочие задачи')
+                self.assertEqual(errors,[]);browser.close()
+
 class WorkspaceBrowserTests(unittest.TestCase):
     def test_operations_track_reviews_reports_and_schedules(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -1,4 +1,4 @@
-# Sentient
+# Sentient · Aster Market
 
 Sentient reads footage from a shop's cameras and answers what a manager asks at
 closing time: how many people came in, when the line ran too long, which shelves
@@ -45,6 +45,11 @@ as real recordings, and the two never share a rollup or a report.
   use one simulated source and do not add duplicate recordings or totals.
 - **Overall PDF:** shelf activity, popular routes, investigations and a frozen
   stock snapshot at generation time. Reports remain available in Report centre.
+- **Operations board:** persistent assigned work, due times, refill/audit tasks,
+  scheduled shelf checks, atomic stock completion and a complete work history.
+- **Shift handover:** download active work, shelf counts and completed tasks as
+  Markdown or export task CSV. New reports freeze the current workload.
+- **Store identity:** editable display names without changing footage or history.
 - Light and dark themes, in English and Russian.
 
 ## Real recordings

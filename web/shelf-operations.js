@@ -16,7 +16,7 @@ async function loadShelfOperations(videoId) {
     if (request !== shelfOps.request) return;
     const recordings = workspace.recordings;
     const select = $('shelf-recording');
-    select.innerHTML = recordings.map(v => `<option value="${esc(v.id)}">${esc(v.store_id)} · ${esc(v.name)}${v.simulated ? ' · '+esc(t('Simulated')) : ''}</option>`).join('');
+    select.innerHTML = recordings.map(v => `<option value="${esc(v.id)}">${esc(v.store_name ?? v.store_id)} · ${esc(v.name)}${v.simulated ? ' · '+esc(t('Simulated')) : ''}</option>`).join('');
     shelfOps.video = videoId ?? shelfOps.video ?? state.video?.id ?? recordings[0]?.id;
     if (!recordings.some(v => v.id === shelfOps.video)) shelfOps.video = recordings[0]?.id;
     select.value = shelfOps.video ?? '';

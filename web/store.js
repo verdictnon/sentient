@@ -17,7 +17,10 @@ const STATUS_ORDER = ['left_without_checkout', 'lost_before_checkout', 'still_in
 
 function storeName(row) {
     if (!row) return '';
-    if (row.simulated) return t('Demo store');
+    if (row.name) return row.name;
+    const known = workBoard.data?.stores?.find(s=>s.id===row.id) ?? store.data?.stores?.find(s=>s.id===row.id);
+    if (known?.name) return known.name;
+    if (row.simulated || ['demo-store','aster-market'].includes(row.id)) return t('Aster Market');
     return row.id.replace(/[-_]+/g, ' ').replace(/^./, c => c.toUpperCase());
 }
 
@@ -101,8 +104,8 @@ function renderPeriod() {
 }
 
 function setSimulatedTape() {
-    const onStore = (['store', 'analytics'].includes(ops.view) && store.data?.basis === 'simulated') || (ops.view === 'shelves' && shelfOps.data?.simulated) || (ops.view === 'cameras' && cameraSim.data?.available),
-        onCamera = !['store', 'shelves', 'cameras', 'reports', 'system', 'help'].includes(ops.view) && state.video?.source_profile?.simulated;
+    const onStore = (ops.view === 'work' && workBoard.data?.store?.simulated) || (['store', 'analytics'].includes(ops.view) && store.data?.basis === 'simulated') || (ops.view === 'shelves' && shelfOps.data?.simulated) || (ops.view === 'cameras' && cameraSim.data?.available),
+        onCamera = !['store', 'work', 'shelves', 'cameras', 'reports', 'system', 'help'].includes(ops.view) && state.video?.source_profile?.simulated;
     $('sim-tape').hidden = !(onStore || onCamera);
 }
 
@@ -550,7 +553,7 @@ function drawFloorOverlay() {
 function renderOnboarding() {
     const demo = store.demo ?? {};
     const building = demo.status === 'building';
-    $('store-empty').innerHTML = `<h2>${esc(t('See a whole store before installing anything'))}</h2><p>${esc(t('Build a simulated store with two weeks of traffic and one camera. It needs no footage, models or GPU, and it stays clearly labelled as simulated.'))}</p>${building?`<div class="build-progress"><progress value="${demo.progress??0}" max="1"></progress><span>${esc(buildStage(demo.stage))}</span></div>`:`<div class="toolbar"><button id="demo-build" class="primary">${esc(t('Build the demo store'))}</button><button id="demo-import">${esc(t('Add my own video'))}</button></div>`}${demo.error?`<p class="field-note">${esc(demo.error)}</p>`:''}`;
+    $('store-empty').innerHTML = `<h2>${esc(t('See a whole store before installing anything'))}</h2><p>${esc(t('Build a simulated store with two weeks of traffic and one camera. It needs no footage, models or GPU, and it stays clearly labelled as simulated.'))}</p>${building?`<div class="build-progress"><progress value="${demo.progress??0}" max="1"></progress><span>${esc(buildStage(demo.stage))}</span></div>`:`<div class="toolbar"><button id="demo-build" class="primary">${esc(t('Prepare Aster Market'))}</button><button id="demo-import">${esc(t('Add my own video'))}</button></div>`}${demo.error?`<p class="field-note">${esc(demo.error)}</p>`:''}`;
     if (!building) {
         $('demo-build').onclick = task(startDemoBuild);
         $('demo-import').onclick = () => $('import-open').click();

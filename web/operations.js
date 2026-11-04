@@ -14,6 +14,7 @@ const ops = {
     health: null
 };
 const viewInfo = {
+    work: ['Operations board', 'Assign, track and close store work.'],
     shelves: ['Shelves', 'Stock checks, refill work and shelf activity.'],
     cameras: ['Camera simulation', 'Synchronized views of the simulated store.'],
     store: ['Store', 'The day on one screen.'],
@@ -24,9 +25,10 @@ const viewInfo = {
     reports: ['Report centre', 'Shift, daily and monthly reports with traceable data.'],
     geometry: ['Camera setup', 'Map areas and place recordings on the calendar.'],
     system: ['System & models', 'Health, rules and model limits.'],
-    help: ['Demo guide', 'How to get the most out of each view.']
+    help: ['Operator guide', 'How to get the most out of each view.']
 };
 const VIEW_SECTIONS = {
+    work: ['work-orders-section'],
     shelves: ['shelf-operations-section'],
     cameras: ['camera-simulation-section'],
     store: ['store-section'],
@@ -107,6 +109,7 @@ function navigate(name) {
     if (name === 'geometry' || name === 'help') tab(name);
     else if (state.tab !== 'results') tab('results');
     if (name !== 'cameras') $('sim-player').pause();
+    if (name === 'work') loadWorkOrders().catch(e => toast(e.message, true));
     if (name === 'shelves') loadShelfOperations().catch(e => toast(e.message, true));
     if (name === 'cameras') loadCameraSimulation().catch(e => toast(e.message, true));
     if (name === 'reports') refreshWorkspace().catch(e => toast(e.message, true));
@@ -819,7 +822,7 @@ function fillReports() {
     $('report-zone-note').textContent = t('Calendar timezone: {zone}. Undated footage appears only in selected-recording reports.', {
         zone: ops.workspace.settings.timezone
     });
-    $('report-library').innerHTML = ops.workspace.reports.map(r => `<article class="report-file"><h3>${esc(r.title)}</h3>${r.simulated?`<p class="report-flag">${esc(t('Simulated'))}</p>`:''}<p>${esc(new Date(r.created_at).toLocaleString(locale()))}, ${esc(t('{n} recordings',{n:r.recordings}))}</p><p>${esc(t('{a} local track IDs, {b} candidates',{a:r.summary.tracks,b:r.summary.pickups??t('unscored')}))}${r.coverage_status==='no_matching_recordings'?esc(', '+t('no matching coverage')):''}</p><div class="report-downloads">${['pdf','docx','csv','json'].map(f=>`<a href="/api/ops/reports/${r.id}/${f}" download>${f.toUpperCase()}</a>`).join('')}</div></article>`).join('') || empty('Your report library is empty', 'Generate a report and it stays here.');
+    $('report-library').innerHTML = ops.workspace.reports.map(r => `<article class="report-file"><h3>${esc(title({display_name:r.title}))}</h3>${r.simulated?`<p class="report-flag">${esc(t('Simulated'))}</p>`:''}<p>${esc(new Date(r.created_at).toLocaleString(locale()))}, ${esc(t('{n} recordings',{n:r.recordings}))}</p><p>${esc(t('{a} local track IDs, {b} candidates',{a:r.summary.tracks,b:r.summary.pickups??t('unscored')}))}${r.coverage_status==='no_matching_recordings'?esc(', '+t('no matching coverage')):''}</p><div class="report-downloads">${['pdf','docx','csv','json'].map(f=>`<a href="/api/ops/reports/${r.id}/${f}" download>${f.toUpperCase()}</a>`).join('')}</div></article>`).join('') || empty('Your report library is empty', 'Generate a report and it stays here.');
 }
 $('report-store').onchange = fillReports;
 $('report-select-all').onclick = () => document.querySelectorAll('[data-report-source]').forEach(e => {

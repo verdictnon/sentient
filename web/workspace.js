@@ -116,7 +116,7 @@ for (const n of ['results', 'geometry', 'help']) $(n + '-tab').onclick = () => t
 function title(v) {
     const label = typeof ops === 'object' ? ops.workspace?.recordings.find(row => row.id === v.id)?.context.label : null;
     if (label) return label;
-    return t(v.display_name.replace(/^CARR_/, '').replace(/_720p\.mp4$/, '').replace(/_video\.mp4$/, '').replaceAll('_', ' '))
+    return t(v.display_name.replace(/^CARR_/, '').replace(/_720p\.mp4$/, '').replace(/_video\.mp4$/, '').replaceAll('_', ' ').replace(/\bdemo\b/gi, '').replace(/\s+/g, ' ').trim())
 }
 
 function library() {

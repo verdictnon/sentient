@@ -653,3 +653,29 @@ body.store-loading .store-main,body.store-loading .store-actions,body.store-load
 .stock-card meter::-webkit-meter-optimum-value {background:var(--ok);}
 .stock-card.refill meter::-webkit-meter-optimum-value,.stock-card.empty meter::-webkit-meter-optimum-value {background:var(--warn);}
 @media(max-width:700px){#stock-kpis {grid-template-columns:1fr;}}
+.work-tools {flex-wrap:wrap;align-items:end;margin:20px 0;}
+.work-tools label {display:grid;gap:6px;}
+.work-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;margin:20px 0 30px;}
+.work-card {padding:22px;border:1px solid var(--line);border-radius:10px;background:var(--surface);}
+.work-card.overdue {border-top:3px solid var(--warn);}
+.work-card h3 {margin:16px 0 6px;font-size:19px;}
+.work-state {background:var(--sunken);padding:4px 8px;border-radius:20px;font-size:11px;}
+.work-state.completed {background:var(--ok-soft);color:var(--ok);}
+.work-state.in_progress {background:var(--series-soft);color:var(--series);}
+.work-due {font-size:12px;margin:14px 0;color:var(--ink-3);}
+.work-card.overdue .work-due {color:var(--warn);}
+.work-card-notes {font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;min-height:20px;margin-bottom:18px;}
+.work-card .toolbar {flex-wrap:wrap;}
+#work-policies table {min-width:640px;}
+#work-policies input {width:85px;}
+.work-camera-title {margin:28px 0 14px;}
+.work-camera-link {display:flex;text-align:left;gap:14px;width:100%;margin:7px 0;}
+.work-camera-link span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.work-history {margin-top:22px;border-top:1px solid var(--line);}
+.work-history p {padding:12px 0;border-bottom:1px solid var(--line);font-size:12px;overflow-wrap:anywhere;}
+#work-error {color:var(--sale);margin:12px 0;}
+#work-kpis {grid-template-columns:repeat(4,minmax(0,1fr));}
+@media(max-width:700px){#work-kpis {grid-template-columns:repeat(2,minmax(0,1fr));}.work-grid {grid-template-columns:1fr;}}
+#work-orders-section>.split {grid-template-columns:minmax(0,2fr) minmax(280px,1fr);}
+#work-policies table {min-width:560px;}
+@media(max-width:1100px){#work-orders-section>.split {grid-template-columns:minmax(0,1fr);}}

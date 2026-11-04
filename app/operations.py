@@ -16,7 +16,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from app import shelf_operations
+from app import shelf_operations, work_orders
 from app.shelf_operations import StockUpdate
 from app.insights import analyse
 from app.journeys import track_journey
@@ -27,9 +27,9 @@ from app.simulation import RULES as SIMULATED_RULES
 from app.storage import canonical, stable_id
 
 UTC = timezone.utc
-SIMULATED_WARNING = "Simulated data. The demo store generated these numbers; nothing here was measured in a shop."
+SIMULATED_WARNING = "Simulated data. These numbers are generated, not measured in a shop."
 DEFAULTS = dict(
-    workspace_name="Sentient Retail",
+    workspace_name="Aster Market",
     timezone="Asia/Almaty",
     dwell_limit_s=20,
     crowd_limit=4,
@@ -72,7 +72,7 @@ def clock(value):
 
 class Settings(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    workspace_name: str = Field(default="Sentient Retail", min_length=1, max_length=100)
+    workspace_name: str = Field(default="Aster Market", min_length=1, max_length=100)
     timezone: str = "Asia/Almaty"
     dwell_limit_s: float = Field(default=20, ge=1, le=7200)
     crowd_limit: int = Field(default=4, ge=2, le=100)
@@ -147,6 +147,7 @@ class Operations:
             CREATE TABLE IF NOT EXISTS ops_simulated_days(store_id TEXT NOT NULL,day TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(store_id,day));
             CREATE TABLE IF NOT EXISTS ops_rollup_cache(key TEXT PRIMARY KEY,video_id TEXT NOT NULL,payload TEXT NOT NULL);""")
         shelf_operations.initialize(catalog)
+        work_orders.initialize(catalog)
         self.demo = dict(status="idle", progress=0.0, stage=None, error=None)
 
     def settings(self):
@@ -154,7 +155,10 @@ class Operations:
             r = db.execute(
                 "SELECT payload FROM ops_settings WHERE id='workspace'"
             ).fetchone()
-        return DEFAULTS | (json.loads(r[0]) if r else {})
+        result = DEFAULTS | (json.loads(r[0]) if r else {})
+        if result["workspace_name"] == "Sentient Retail":
+            result["workspace_name"] = "Aster Market"
+        return result
 
     def save_settings(self, value):
         zone(value["timezone"])
@@ -468,6 +472,7 @@ class Operations:
                 name=v["display_name"],
                 camera_id=v["camera_id"],
                 store_id=v["store_id"],
+                store_name=work_orders.store_name(self, v["store_id"]),
                 duration_seconds=round(
                     (v.get("declared_duration_ms") or v["indexed_span_ms"]) / 1000, 2
                 ),
@@ -751,6 +756,7 @@ class Operations:
             summary=totals,
             recordings=items,
             areas=area_rows,
+            work_orders=work_orders.report_snapshot(self, items),
             shelf_operations=[
                 shelf_operations.snapshot(self, item["video_id"], metrics=False)
                 for item in items
@@ -845,6 +851,7 @@ class Operations:
                 dict(
                     id=video["store_id"],
                     simulated=False,
+                    name=work_orders.store_name(self, video["store_id"]),
                     recordings=0,
                     analysed=0,
                     dated=0,
@@ -1288,6 +1295,26 @@ def period_start(value, end):
 
 def router(ops):
     r = APIRouter(prefix="/api/ops")
+
+    @r.get("/work-orders")
+    def work_board(store_id: str | None = None):
+        return work_orders.board(ops, store_id)
+
+    @r.post("/work-orders")
+    def create_work_order(value: work_orders.NewTask):
+        return work_orders.create(ops, value.model_dump(mode="json"))
+
+    @r.put("/work-orders/{task_id}")
+    def change_work_order(task_id: str, value: work_orders.TaskChange):
+        return work_orders.change(ops, task_id, value.model_dump())
+
+    @r.put("/stores/{store_id}/profile")
+    def store_profile(store_id: str, value: work_orders.StoreProfile):
+        return work_orders.save_store(ops, store_id, value.model_dump())
+
+    @r.put("/recordings/{video_id}/shelves/{shelf_id}/policy")
+    def shelf_policy(video_id: str, shelf_id: str, value: work_orders.CheckPolicy):
+        return work_orders.save_policy(ops, video_id, shelf_id, value.model_dump())
 
     @r.get("/workspace")
     def workspace():

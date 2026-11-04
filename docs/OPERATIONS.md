@@ -120,6 +120,38 @@ or cross-camera re-identification. No extra observations enter rollups or report
 Use **Explore source tracks** to investigate the underlying saved run. Real
 recordings and simulated data remain separate.
 
+## Store work and shift handover
+
+**Operations board** collects work for one store across its current camera
+mappings. Low confirmed stock opens a refill task. Uncounted shelves and expired
+check intervals open audit tasks. Each shelf has an editable check interval from
+1 to 168 hours (four hours initially). Refreshing does not duplicate active tasks.
+The visible board refreshes every 30 seconds; reminders are local to the app.
+
+Assign a name, record notes and move work from Open to In progress to Completed.
+Completing a refill requires confirmed added units; completing an audit requires
+a counted quantity. Work completion and the stock ledger commit in one database
+transaction. Insufficient or stale quantities reject the whole update. An
+external confirmed count can resolve related tasks automatically. Removed shelf
+mappings cancel their active tasks with a retained explanation. Camera mappings
+use the newest registered recording for each camera; stable shelf IDs preserve
+stock and task identity. Review history remains available on closed tasks.
+
+Manual tasks support owners, local due times, notes, completion and cancellation.
+Owners are operator-entered labels, not authenticated user accounts. Work is
+stored in SQLite and survives restarts. Generated tasks are evaluated when the
+board or reporting snapshot loads; no external notification service is implied.
+
+**Export shift handover** downloads a Markdown briefing with active work, shelf
+counts, check times and completed work. **Tasks CSV** exports the full task list.
+New overall PDFs and JSON freeze current work at generation time, separately from
+the requested activity period. Historical report snapshots remain unchanged.
+
+The default display name is **Aster Market**, a fictional store name. Edit it in
+**Store identity** without moving recordings or changing their underlying IDs.
+Generated footage remains labelled Simulated. Existing internal API identifiers
+remain compatible with earlier clients.
+
 ## Monitor and tracking
 
 Select a recording from the searchable strip under the camera. The saved-analysis selector

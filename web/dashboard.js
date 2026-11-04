@@ -292,7 +292,7 @@ $('export').addEventListener('click', guard(async event => {
         ...(Array.isArray(source) ? {
             evidence: source
         } : source),
-        report_format: 'sentient.demo-report/1',
+        report_format: 'sentient.analysis-report/1',
         recording: {
             id: state.video.id,
             name: state.video.display_name,

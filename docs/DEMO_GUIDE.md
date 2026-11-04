@@ -1,4 +1,4 @@
-# Sentient demo
+# Aster Market operations guide
 
 For a laptop with no models or footage, run `./run_demo.sh` or `run_demo.bat` and
 see [the pitch run-through](PITCH_DEMO.md). The simulated store is described in
@@ -47,7 +47,7 @@ offline analysis; a queued offline job waits until live analysis ends.
 
 - Find recordings in the strip under the camera, or press Ctrl K to jump to a
   view or recording. **Store**, **Monitor**, **Analytics**, **Camera setup** and
-  **Demo guide** navigate the workspace. Keys 1 to 6 switch views. On mobile, open
+  **Operator guide** navigate the workspace. Keys 1 to 6 switch views. On mobile, open
   the sidebar with the top-left menu button.
 - Summary cards show unique observed camera-local tracks, pickup candidates,
   observed dwell divided by area visits, and mapped polygons. A dash means no
@@ -95,7 +95,7 @@ without another model run. Import/export JSON preserves names, points and IDs.
   a line for directional crossing counts.
 
 Leave entrances, exits or checkout areas absent when they cannot be seen.
-The seven demo recordings have manually drawn shelf approach areas based on
+The seven selected recordings have manually drawn shelf approach areas based on
 four actual camera scenes. They have no invented entrance or cashier labels.
 These image polygons are not metric calibration or a multi-camera floor plan.
 
@@ -124,7 +124,7 @@ camera ID. Use the same store and recording-session label for genuinely
 synchronized views. Source PTS is indexed; capture UTC is not inferred from
 file creation dates. Importing several files does not automatically align
 clocks or identify one person across cameras. Draw geometry for each view.
-Only public datasets are in scope for this demo; no camera recordings have
+Only public datasets are in scope for this workspace; no camera recordings have
 been collected by the project.
 
 ## Model and data limits
@@ -133,8 +133,8 @@ The retained pickup model is `runs/take_demo_v1/model`. Its take threshold is
 0.97. The earlier 97.3% precision / 49.3% recall result is on reused curated
 RetailAction development windows. It is not independently measured accuracy on
 these CCTV recordings. CARR person-detector crops and continuous windows are
-transfer inputs. The demo verifies execution and causality, not real-store
-pickup accuracy. No new training was used to make the demo videos look better.
+transfer inputs. The workspace verifies execution and causality, not real-store
+pickup accuracy. No new training was used to make the selected videos look better.
 
 CARR public source: https://doi.org/10.7910/DVN/CY24UB (CC BY-NC 4.0 research
 release). Public-source constraints and the hour-long multi-camera search are
@@ -143,4 +143,4 @@ recorded in `docs/DATA_SOURCES.md`.
 Geometry schema v2 allows missing entrance/dwell mappings and adds shelf and
 exit polygons. The old analytics kernel receives an outside-image sentinel
 for absent legacy mappings. Those legacy diagnostic zeros do not mean an
-observed zero at an unlabelled door; the demo uses only explicitly drawn areas.
+observed zero at an unlabelled door; the workspace uses only explicitly drawn areas.
